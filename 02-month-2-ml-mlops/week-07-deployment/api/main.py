@@ -254,7 +254,7 @@ def predict(customer: CustomerData):
     try:
         # Convert Pydantic model to DataFrame
         # The model expects a DataFrame with the same structure as training data
-        input_data = pd.DataFrame([customer.dict()])
+        input_data = pd.DataFrame([customer.model_dump()])
         
         # Make prediction
         prediction = model.predict(input_data)[0]
@@ -298,8 +298,15 @@ def predict_batch(request: BatchPredictionRequest):
         )
     
     try:
+        # Handle empty list
+        if not request.customers:
+            return BatchPredictionResponse(
+                predictions=[],
+                total_customers=0
+            )
+        
         # Convert list of customers to DataFrame
-        customers_data = [c.dict() for c in request.customers]
+        customers_data = [c.model_dump() for c in request.customers]
         input_data = pd.DataFrame(customers_data)
         
         # Make predictions
