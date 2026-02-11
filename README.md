@@ -1185,4 +1185,4 @@ capstone: Add evaluation harness with Ragas
 
 ---
 
-**Good luck on your 12-week AI/Data/LLM journey! 🚀**
+
