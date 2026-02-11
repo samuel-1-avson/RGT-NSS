@@ -193,15 +193,16 @@ def clean_data(filepath, output_path=None):
     # Save if output path provided
     if output_path:
         df.to_csv(output_path, index=False)
-        print(f"\n✓ Cleaned data saved to: {output_path}")
+        print(f"\n[OK] Cleaned data saved to: {output_path}")
     
-    print(f"\n✓ Pipeline complete: {len(df):,} rows processed")
+    print(f"\n[OK] Pipeline complete: {len(df):,} rows processed")
     return df
 
 
 if __name__ == "__main__":
     # Example usage
-    df_clean = clean_data(
-        '../data/superstore.csv',
-        '../data/superstore_cleaned.csv'
-    )
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    input_path = os.path.join(script_dir, '..', 'data', 'superstore.csv')
+    output_path = os.path.join(script_dir, '..', 'data', 'superstore_cleaned.csv')
+    df_clean = clean_data(input_path, output_path)
