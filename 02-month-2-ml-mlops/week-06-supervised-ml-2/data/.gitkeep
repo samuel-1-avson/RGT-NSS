@@ -1,0 +1,8 @@
+# Week 6 Data Directory
+
+Place datasets here for ML pipeline training.
+
+## Recommended Datasets
+1. Telco Customer Churn (continued from Week 5)
+2. House Prices - Advanced Regression Techniques
+3. Any structured classification dataset

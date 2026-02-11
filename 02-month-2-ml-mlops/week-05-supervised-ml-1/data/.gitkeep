@@ -1,0 +1,17 @@
+# Week 5 Data Directory
+
+Place the Telco Customer Churn dataset here.
+
+## Dataset Download
+
+Download from: https://www.kaggle.com/datasets/blastchar/telco-customer-churn
+
+Or use the direct link via pandas:
+```python
+import pandas as pd
+url = "https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/master/data/Telco-Customer-Churn.csv"
+df = pd.read_csv(url)
+```
+
+## Expected Files
+- `Telco-Customer-Churn.csv` - Main dataset with 7043 rows and 21 columns
