@@ -8,6 +8,7 @@ This script creates a SQLite database with synthetic retail data including:
 - Order Items (1-5 items per order)
 """
 
+import os
 import sqlite3
 import pandas as pd
 import numpy as np
@@ -89,7 +90,15 @@ def generate_order_items(orders, products):
     return pd.DataFrame(order_items_list)
 
 
-def create_database(db_path='../data/retail.db'):
+def create_database(db_path=None):
+    if db_path is None:
+        # Get the script's directory and construct absolute path
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(script_dir, '..', 'data', 'retail.db')
+        db_path = os.path.abspath(db_path)
+    
+    # Ensure data directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     """Create SQLite database with all tables."""
     print("Generating synthetic retail database...")
     print("=" * 50)
