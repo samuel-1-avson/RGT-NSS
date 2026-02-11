@@ -337,10 +337,16 @@ def make_prediction(customer_data: CustomerData, customer_id: Optional[str] = No
         # Prepare features
         features_df = prepare_features(customer_data)
         
-        # Apply preprocessing if available
-        if preprocessor is not None:
+        # Check if model is a Pipeline (has built-in preprocessor)
+        from sklearn.pipeline import Pipeline
+        if isinstance(model, Pipeline):
+            # Pass DataFrame directly to the pipeline
+            features = features_df
+        elif preprocessor is not None:
+            # Apply separate preprocessing
             features = preprocessor.transform(features_df)
         else:
+            # Use raw values
             features = features_df.values
         
         # Make prediction
