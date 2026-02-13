@@ -15,76 +15,131 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <header className="mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Heart Disease Business Insights</h1>
-        <p className="text-lg text-gray-600">Milestone Project A: Healthcare Analytics Dashboard</p>
-      </header>
-
-      <main>
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          {metrics.map((metric, index) => (
-            <div key={index} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-              <p className="text-sm font-medium text-gray-500 mb-1">{metric.label}</p>
-              <p className={`text-3xl font-bold ${metric.color}`}>{metric.value}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-          {/* Chart 1 */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Disease Distribution</h2>
-            <div className="relative h-64 w-full">
-              <Image 
-                src="/disease_distribution.png" 
-                alt="Disease Distribution" 
-                fill 
-                className="object-contain"
-              />
-            </div>
-            <p className="mt-4 text-sm text-gray-500 italic text-center">
-              Breakdown of heart disease prevalence across the patient sample.
-            </p>
-          </div>
-
-          {/* Chart 2 */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Age by Disease Prevalence</h2>
-            <div className="relative h-64 w-full">
-              <Image 
-                src="/age_by_disease.png" 
-                alt="Age by Disease" 
-                fill 
-                className="object-contain"
-              />
-            </div>
-            <p className="mt-4 text-sm text-gray-500 italic text-center">
-              Visualization of how disease rate correlates with patient age.
-            </p>
+    <div className="min-h-screen bg-gray-50 pb-20">
+      {/* Navigation / Header Bar */}
+      <nav className="bg-white border-b border-gray-200 py-4 px-8 mb-8">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <span className="text-xl font-bold text-blue-600">RGT Healthcare Analytics</span>
+          <div className="space-x-6 text-sm font-medium text-gray-500">
+            <span>Dashboard</span>
+            <span>Reports</span>
+            <span>Settings</span>
           </div>
         </div>
+      </nav>
 
-        {/* Findings & Recommendations */}
-        <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Key Recommendations</h2>
-          <ul className="space-y-4">
-            {findings.map((finding, index) => (
-              <li key={index} className="flex items-start">
-                <span className="flex-shrink-0 h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3 font-bold">
-                  {index + 1}
-                </span>
-                <p className="text-lg text-gray-700">{finding}</p>
-              </li>
+      <div className="max-w-7xl mx-auto px-8">
+        <header className="mb-12">
+          <div className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase mb-4">
+            Milestone Project A
+          </div>
+          <h1 className="text-4xl font-extrabold text-gray-900 mb-2 tracking-tight">Heart Disease Business Insights</h1>
+          <p className="text-lg text-gray-600 max-w-2xl">
+            A comprehensive analysis of patient data to identify key risk factors and provide actionable healthcare recommendations.
+          </p>
+        </header>
+
+        <main>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {metrics.map((metric, index) => (
+              <div key={index} className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow">
+                <p className="text-sm font-medium text-gray-500 mb-1">{metric.label}</p>
+                <p className={`text-3xl font-bold ${metric.color}`}>{metric.value}</p>
+              </div>
             ))}
-          </ul>
-        </div>
-      </main>
+          </div>
 
-      <footer className="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500">
-        <p>© 2026 RGT 2025 NSP AI/Data Training Program - Milestone Project A</p>
-      </footer>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+            {/* Overview Section */}
+            <div className="lg:col-span-1 space-y-8">
+              <section className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                <h2 className="text-lg font-bold text-gray-900 mb-4">Project Overview</h2>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  This project transforms raw healthcare data from the UCI Heart Disease dataset into a business-ready insights pack.
+                  The goal is to support medical decision-making through data-driven evidence.
+                </p>
+              </section>
+
+              <section className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                <h2 className="text-lg font-bold text-gray-900 mb-4">Methodology</h2>
+                <ul className="text-sm text-gray-600 space-y-2">
+                  <li className="flex items-center">
+                    <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                    Data Cleaning & Imputation
+                  </li>
+                  <li className="flex items-center">
+                    <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                    Exploratory Data Analysis
+                  </li>
+                  <li className="flex items-center">
+                    <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                    SQL Risk Factor Analysis
+                  </li>
+                  <li className="flex items-center">
+                    <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                    Visual Storytelling
+                  </li>
+                </ul>
+              </section>
+            </div>
+
+            {/* Visualizations Area */}
+            <div className="lg:col-span-2 space-y-8">
+              <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                <h2 className="text-xl font-bold text-gray-800 mb-6">Disease Distribution</h2>
+                <div className="relative h-80 w-full">
+                  <Image 
+                    src="/disease_distribution.png" 
+                    alt="Disease Distribution" 
+                    fill 
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                <h2 className="text-xl font-bold text-gray-800 mb-6">Age Analysis</h2>
+                <div className="relative h-80 w-full">
+                  <Image 
+                    src="/age_by_disease.png" 
+                    alt="Age by Disease" 
+                    fill 
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Findings & Recommendations */}
+          <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-100 border-l-4 border-l-blue-600">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+              <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Key Findings & Clinical Recommendations
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {findings.map((finding, index) => (
+                <div key={index} className="space-y-2">
+                  <span className="text-blue-600 font-bold text-lg">0{index + 1}</span>
+                  <p className="text-gray-700 leading-relaxed font-medium">{finding}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+
+        <footer className="mt-20 pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center text-gray-400 text-sm">
+          <p>© 2026 RGT 2025 NSP AI/Data Training Program</p>
+          <div className="flex space-x-4 mt-4 md:mt-0">
+            <span className="hover:text-blue-500 cursor-pointer transition-colors">Documentation</span>
+            <span className="hover:text-blue-500 cursor-pointer transition-colors">GitHub</span>
+            <span className="hover:text-blue-500 cursor-pointer transition-colors">Support</span>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
