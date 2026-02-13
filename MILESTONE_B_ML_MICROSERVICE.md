@@ -642,17 +642,6 @@ This production-ready ML microservice demonstrates:
 3. **Business Value**: $50K+ annual revenue protection
 4. **MLOps Practices**: Monitoring, logging, and maintenance
 
-### Next Steps
-
-```
-Month 3: Generative AI
-└── Extend this system:
-    ├── Natural language explanations
-    ├── Chatbot for retention agents
-    ├── Automated email generation
-    └── Semantic search for similar cases
-```
-
 ---
 
 **📞 Resources**
@@ -663,4 +652,4 @@ Month 3: Generative AI
 
 ---
 
-*This project was completed as part of the RGT 2025 NSP AI/Data/LLM Training Program.*
+*This project was completed as part of the RGT 2025 NSP AI/Data Training Program.*

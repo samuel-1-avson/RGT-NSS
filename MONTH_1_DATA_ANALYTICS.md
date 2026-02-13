@@ -384,4 +384,4 @@ Month 1 completed! Ready for **Month 2: Applied ML & MLOps** where we'll:
 
 ---
 
-*This project was completed as part of the RGT 2025 NSP AI/Data/LLM Training Program.*
+*This project was completed as part of the RGT 2025 NSP AI/Data Training Program.*

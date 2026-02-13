@@ -1,6 +1,6 @@
-# RGT 2025 NSP AI/Data/LLM Training Program
+# RGT 2025 NSP AI/Data Training Program
 
-> **12-Week Comprehensive Training in Data Analytics, Machine Learning & Generative AI**  
+> **8-Week Comprehensive Training in Data Analytics & Machine Learning**  
 > **GitHub Repository**: https://github.com/samuel-1-avson/RGT-NSS.git
 
 ---
@@ -9,11 +9,11 @@
 
 | Attribute | Details |
 |-----------|---------|
-| **Duration** | 12 weeks (3 months) |
+| **Duration** | 8 weeks (2 months) |
 | **Weekly Commitment** | 10-12 hours/week |
 | **Format** | 6 hrs workshops + 4-6 hrs independent study |
 | **Data Sources** | Kaggle datasets & Synthetic data only |
-| **Tech Stack** | Python, Jupyter/VS Code, SQL, Google Looker Studio, scikit-learn, Hugging Face, LangChain, FAISS/Weaviate/Chroma, Git/GitHub, Cursor AI IDE |
+| **Tech Stack** | Python, Jupyter/VS Code, SQL, Google Looker Studio, scikit-learn, Git/GitHub, Cursor AI IDE |
 
 ---
 
@@ -74,11 +74,6 @@ main ──► milestone-project-a ──► PR ──► MERGE
 | Week 7 | `week-07-deployment` | Week 6 Model |
 | Week 8 | `week-08-mlops` | Week 7 API |
 | **Milestone B** | `milestone-project-b` | Kaggle - Classification Dataset |
-| Week 9 | `week-09-llm-fundamentals` | Hugging Face Datasets |
-| Week 10 | `week-10-langchain-apps` | PDF Documents |
-| Week 11 | `week-11-rag-vector-db` | Custom Documents |
-| Week 12 | `week-12-evaluation` | Week 11 RAG Pipeline |
-| **Capstone** | `capstone-project` | Custom Domain Dataset |
 
 ---
 
@@ -759,328 +754,6 @@ def predict(request: PredictionRequest):
 
 ---
 
-## Month 3: Generative AI & LLMs (Weeks 9-12)
-
-### Week 9: LLM Fundamentals & Prompt Engineering
-**Branch**: `week-09-llm-fundamentals`
-
-**Dataset**: Hugging Face Datasets + Custom Examples
-
-#### Prep (≤60 min)
-- [ ] Complete Hugging Face LLM Course Chapters 1-2
-- [ ] Watch deeplearning.ai Prompt Engineering course
-
-#### Guided Lab (≤120 min)
-- [ ] Practice few-shot prompting
-- [ ] Experiment with function calling
-- [ ] Test prompt variations in Cursor
-
-**Lab Code Template**:
-```python
-from openai import OpenAI
-import os
-
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-
-# Few-shot prompting
-def classify_sentiment(text):
-    prompt = """Classify the sentiment of the following text as Positive, Negative, or Neutral.
-
-Examples:
-Text: "I love this product! It's amazing."
-Sentiment: Positive
-
-Text: "This is the worst experience ever."
-Sentiment: Negative
-
-Text: "The product arrived on time."
-Sentiment: Neutral
-
-Text: "{}"
-Sentiment:""".format(text)
-    
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0
-    )
-    
-    return response.choices[0].message.content.strip()
-
-# Test
-print(classify_sentiment("This movie was fantastic!"))
-```
-
-#### Independent Work (≤120 min)
-- [ ] Create Prompt Cookbook with 5 patterns
-- [ ] Document failure cases
-- [ ] Implement guardrails
-
-#### Deliverable
-**Prompt Cookbook** (`prompts/week09_cookbook.md`) containing:
-- 5 prompting patterns with examples
-- Documented failure cases
-- Guardrail implementations
-
-**Prompt Patterns**:
-1. Zero-shot prompting
-2. Few-shot prompting
-3. Chain-of-thought
-4. Role-based prompting
-5. Function calling
-
-**Commit Message**: `week-09: Add prompt cookbook with 5 patterns and guardrails`
-
----
-
-### Week 10: Building LLM Apps with LangChain
-**Branch**: `week-10-langchain-apps`
-
-**Dataset**: PDF Documents (synthetic or public domain)
-
-#### Prep (≤60 min)
-- [ ] Read LangChain introduction
-- [ ] Complete LangChain tutorials
-
-#### Guided Lab (≤120 min)
-- [ ] Build Q&A app over PDF documents
-- [ ] Implement basic evaluation
-- [ ] Add logging for latency and token usage
-
-**Lab Code Template**:
-```python
-from langchain.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
-from langchain.chains import RetrievalQA
-from langchain.chat_models import ChatOpenAI
-
-# Load PDF
-loader = PyPDFLoader('data/sample_document.pdf')
-documents = loader.load()
-
-# Split documents
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-texts = text_splitter.split_documents(documents)
-
-# Create vector store
-embeddings = OpenAIEmbeddings()
-vectorstore = Chroma.from_documents(texts, embeddings, persist_directory='data/chroma')
-
-# Create QA chain
-qa_chain = RetrievalQA.from_chain_type(
-    llm=ChatOpenAI(model_name='gpt-3.5-turbo'),
-    chain_type='stuff',
-    retriever=vectorstore.as_retriever()
-)
-
-# Query
-response = qa_chain.run("What is the main topic of this document?")
-print(response)
-```
-
-#### Independent Work (≤120 min)
-- [ ] Instrument app with comprehensive logging
-- [ ] Add unit tests
-- [ ] Use Cursor for debugging
-
-#### Deliverable
-**LangChain App** (`app/`) with:
-- Working Q&A functionality
-- Logging and observability
-- Unit tests
-- Setup instructions
-
-**Commit Message**: `week-10: Add LangChain Q&A app with PDF support`
-
----
-
-### Week 11: RAG & Vector Databases
-**Branch**: `week-11-rag-vector-db`
-
-**Dataset**: Custom corpus (public domain books or articles)
-
-#### Prep (≤60 min)
-- [ ] Read Pinecone RAG overview
-- [ ] Review Weaviate Academy quickstart
-
-#### Guided Lab (≤120 min)
-- [ ] Implement RAG with local FAISS index
-- [ ] Compare with managed vector DB
-- [ ] Experiment with chunk sizes
-
-**Lab Code Template**:
-```python
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import TextLoader
-
-# Load documents
-loader = TextLoader('data/corpus.txt')
-documents = loader.load()
-
-# Split with different chunk sizes
-for chunk_size in [500, 1000, 1500]:
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_size * 0.2
-    )
-    texts = text_splitter.split_documents(documents)
-    
-    # Create FAISS index
-    embeddings = OpenAIEmbeddings()
-    vectorstore = FAISS.from_documents(texts, embeddings)
-    
-    # Test retrieval
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-    docs = retriever.get_relevant_documents("What is machine learning?")
-    
-    print(f"Chunk size {chunk_size}: Retrieved {len(docs)} documents")
-```
-
-#### Independent Work (≤120 min)
-- [ ] Build complete RAG pipeline
-- [ ] Log retrieval quality metrics
-- [ ] Create evaluation scripts
-
-#### Deliverable
-**RAG Pipeline** (`rag/`) with:
-- Document ingestion
-- Vector index (FAISS or Chroma)
-- Retrieval and generation
-- Quality metrics
-
-**Commit Message**: `week-11: Add RAG pipeline with FAISS and chunking experiments`
-
----
-
-### Week 12: Evaluating & Hardening LLM Apps
-**Branch**: `week-12-evaluation`
-
-**Dataset**: Week 11 RAG Pipeline
-
-#### Prep (≤60 min)
-- [ ] Read Ragas documentation
-- [ ] Review evaluation best practices
-
-#### Guided Lab (≤120 min)
-- [ ] Use Ragas to evaluate Week 11 RAG
-- [ ] Add unit tests for prompts/retrievers
-- [ ] Implement regression checks
-
-**Lab Code Template**:
-```python
-from ragas import evaluate
-from ragas.metrics import faithfulness, answer_relevancy, context_precision
-from datasets import Dataset
-
-# Prepare evaluation dataset
-eval_data = {
-    'question': ['What is RAG?', 'How does vector search work?'],
-    'answer': ['RAG is...', 'Vector search works by...'],
-    'contexts': [['RAG stands for...'], ['Vector search uses embeddings...']],
-    'ground_truth': ['Retrieval Augmented Generation', 'Embedding-based similarity search']
-}
-
-dataset = Dataset.from_dict(eval_data)
-
-# Evaluate
-result = evaluate(
-    dataset=dataset,
-    metrics=[faithfulness, answer_relevancy, context_precision]
-)
-
-print(result)
-```
-
-#### Independent Work (≤120 min)
-- [ ] Build evaluation harness
-- [ ] Set quality thresholds
-- [ ] Document evaluation results
-
-#### Deliverable
-**Evaluation Report** (`evaluation/week12_report.md`) + **Improved Pipeline**
-
-**Commit Message**: `week-12: Add Ragas evaluation harness with thresholds`
-
----
-
-## Capstone Project: End-to-End Applied LLM Solution
-**Branch**: `capstone-project` | **Timeline**: Weeks 10-12 | **Weight**: 50%
-
-### Project Options
-
-#### Option 1: Ask-Your-Policy Assistant
-- RAG over policy documents
-- Source citations
-- Multi-document queries
-
-#### Option 2: Internal Knowledge Bot
-- Company knowledge base
-- FAQ automation
-- Document search
-
-#### Option 3: Analytics Q&A
-- Natural language to SQL
-- Data exploration via conversation
-- Visualization generation
-
-### Requirements
-
-#### 1. Problem Statement (10%)
-- [ ] Clear definition of the problem
-- [ ] Stakeholder identification
-- [ ] Success criteria
-
-#### 2. Data Sourcing & Governance (10%)
-- [ ] Data sources documented
-- [ ] Privacy and ethics considerations
-- [ ] Data preprocessing pipeline
-
-#### 3. System Design (15%)
-- [ ] Architecture diagram
-- [ ] Component descriptions
-- [ ] Technology choices rationale
-
-#### 4. RAG Pipeline (25%)
-- [ ] Document ingestion
-- [ ] Chunking strategy
-- [ ] Embedding model selection
-- [ ] Vector database
-- [ ] Retrieval logic
-- [ ] Generation with citations
-
-#### 5. Evaluation Results (20%)
-- [ ] Evaluation dataset
-- [ ] Metrics (faithfulness, relevancy, etc.)
-- [ ] Comparison of approaches
-- [ ] Error analysis
-
-#### 6. Dashboard/UX (10%)
-- [ ] User interface (web app, notebook, or CLI)
-- [ ] User experience considerations
-- [ ] Accessibility notes
-
-#### 7. Demo (10%)
-- [ ] 5-minute presentation
-- [ ] Live demonstration
-- [ ] Q&A preparation
-
-### Submission Checklist
-- [ ] GitHub repository with complete code
-- [ ] README with comprehensive documentation
-- [ ] requirements.txt or environment.yml
-- [ ] Architecture diagram
-- [ ] Evaluation report
-- [ ] Demo video or live presentation scheduled
-- [ ] Project reflection document
-
-**Commit Message**: `capstone: Complete end-to-end LLM solution with RAG and evaluation`
-
----
-
 ## Data Sources Summary
 
 | Week | Dataset | Source | Link |
@@ -1095,11 +768,6 @@ print(result)
 | 7 | House Prices Model | Week 6 | Trained model |
 | 8 | House Prices API | Week 7 | FastAPI app |
 | B | Credit Card Fraud | Kaggle | [Link](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) |
-| 9 | Various | Hugging Face | [Datasets](https://huggingface.co/datasets) |
-| 10 | PDF Documents | Public Domain | Project Gutenberg |
-| 11 | Custom Corpus | Public Domain | Articles/Books |
-| 12 | RAG Pipeline | Week 11 | Implemented pipeline |
-| Cap | Custom | Domain-specific | Your choice |
 
 ---
 
@@ -1180,8 +848,6 @@ capstone: Add evaluation harness with Ragas
 ### Documentation
 - [CRISP-DM Guide](https://www.datascience-pm.com/crisp-dm-2/)
 - [scikit-learn User Guide](https://scikit-learn.org/stable/user_guide.html)
-- [LangChain Docs](https://python.langchain.com/)
-- [Ragas Docs](https://docs.ragas.io/)
 
 ---
 

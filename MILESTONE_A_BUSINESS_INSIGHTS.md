@@ -525,4 +525,4 @@ Real-World Application
 
 **🎉 Milestone A Complete!**
 
-*This project was completed as part of the RGT 2025 NSP AI/Data/LLM Training Program.*
+*This project was completed as part of the RGT 2025 NSP AI/Data Training Program.*

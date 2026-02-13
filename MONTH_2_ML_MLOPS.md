@@ -570,6 +570,4 @@ print(f"Churn Risk: {result['churn_probability']:.1%}")
 
 ---
 
-*This project was completed as part of the RGT 2025 NSP AI/Data/LLM Training Program.*
-
-**🎉 Ready for Month 3: Generative AI & LLMs!**
+*This project was completed as part of the RGT 2025 NSP AI/Data Training Program.*

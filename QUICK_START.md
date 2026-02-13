@@ -96,11 +96,6 @@ week-06-supervised-ml-2
 week-07-deployment
 week-08-mlops
 milestone-project-b
-week-09-llm-fundamentals
-week-10-langchain-apps
-week-11-rag-vector-db
-week-12-evaluation
-capstone-project
 ```
 
 ---
@@ -155,9 +150,8 @@ milestone-a: Complete Business Insights Pack
 
 | Deliverable | Weight |
 |-------------|--------|
-| Milestone A | 25% |
-| Milestone B | 25% |
-| Capstone | 50% |
+| Milestone A | 50% |
+| Milestone B | 50% |
 
 ---
 
@@ -167,7 +161,6 @@ milestone-a: Complete Business Insights Pack
 - [GITHUB_SETUP.md](GITHUB_SETUP.md) - Detailed Git workflow
 - [Kaggle](https://kaggle.com) - Datasets
 - [scikit-learn docs](https://scikit-learn.org) - ML reference
-- [LangChain docs](https://python.langchain.com) - LLM reference
 
 ---
 
