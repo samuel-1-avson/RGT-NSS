@@ -112,6 +112,32 @@ Create a comprehensive business insights package demonstrating your data analyti
 
 ---
 
+## 🚀 Web Dashboard (Next.js)
+
+A modern web application built with **Next.js 15** and **Tailwind CSS** to present the project's outputs and outcomes in an interactive format.
+
+### Features
+- **KPI Overview**: Real-time display of key healthcare metrics.
+- **Visual Analytics**: Interactive viewing of disease distribution and age analysis charts.
+- **Executive Summary**: Automated presentation of findings and clinical recommendations.
+
+### How to Run
+1. Navigate to the web-app directory:
+   ```bash
+   cd 01-month-1-data-analytics/milestone-project-a/web-app
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
 ## Folder Structure
 ```
 milestone-project-a/
