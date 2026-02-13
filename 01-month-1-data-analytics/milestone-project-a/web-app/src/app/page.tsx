@@ -1,65 +1,90 @@
 import Image from "next/image";
 
 export default function Home() {
+  const metrics = [
+    { label: "Total Patients", value: "500", color: "text-blue-600" },
+    { label: "Heart Disease Rate", value: "55.0%", color: "text-red-600" },
+    { label: "Average Age", value: "53.0 yrs", color: "text-green-600" },
+    { label: "Avg Cholesterol", value: "349.1 mg/dl", color: "text-orange-600" },
+  ];
+
+  const findings = [
+    "Focus screening on patients over 50 years old.",
+    "Monitor cholesterol levels regularly for high-risk groups.",
+    "Implement lifestyle interventions for patients with multiple risk factors.",
+  ];
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <header className="mb-12">
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">Heart Disease Business Insights</h1>
+        <p className="text-lg text-gray-600">Milestone Project A: Healthcare Analytics Dashboard</p>
+      </header>
+
+      <main>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          {metrics.map((metric, index) => (
+            <div key={index} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <p className="text-sm font-medium text-gray-500 mb-1">{metric.label}</p>
+              <p className={`text-3xl font-bold ${metric.color}`}>{metric.value}</p>
+            </div>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+          {/* Chart 1 */}
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">Disease Distribution</h2>
+            <div className="relative h-64 w-full">
+              <Image 
+                src="/disease_distribution.png" 
+                alt="Disease Distribution" 
+                fill 
+                className="object-contain"
+              />
+            </div>
+            <p className="mt-4 text-sm text-gray-500 italic text-center">
+              Breakdown of heart disease prevalence across the patient sample.
+            </p>
+          </div>
+
+          {/* Chart 2 */}
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">Age by Disease Prevalence</h2>
+            <div className="relative h-64 w-full">
+              <Image 
+                src="/age_by_disease.png" 
+                alt="Age by Disease" 
+                fill 
+                className="object-contain"
+              />
+            </div>
+            <p className="mt-4 text-sm text-gray-500 italic text-center">
+              Visualization of how disease rate correlates with patient age.
+            </p>
+          </div>
+        </div>
+
+        {/* Findings & Recommendations */}
+        <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Key Recommendations</h2>
+          <ul className="space-y-4">
+            {findings.map((finding, index) => (
+              <li key={index} className="flex items-start">
+                <span className="flex-shrink-0 h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3 font-bold">
+                  {index + 1}
+                </span>
+                <p className="text-lg text-gray-700">{finding}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       </main>
+
+      <footer className="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500">
+        <p>© 2026 RGT 2025 NSP AI/Data Training Program - Milestone Project A</p>
+      </footer>
     </div>
   );
 }
