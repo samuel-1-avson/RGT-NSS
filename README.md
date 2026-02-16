@@ -7,25 +7,27 @@
 
 ## Program Overview
 
-| Attribute | Details |
-|-----------|---------|
-| **Duration** | 8 weeks (2 months) |
-| **Weekly Commitment** | 10-12 hours/week |
-| **Format** | 6 hrs workshops + 4-6 hrs independent study |
-| **Data Sources** | Kaggle datasets & Synthetic data only |
-| **Tech Stack** | Python, Jupyter/VS Code, SQL, Google Looker Studio, scikit-learn, Git/GitHub, Cursor AI IDE |
+| Attribute             | Details                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------- |
+| **Duration**          | 8 weeks (2 months)                                                                          |
+| **Weekly Commitment** | 10-12 hours/week                                                                            |
+| **Format**            | 6 hrs workshops + 4-6 hrs independent study                                                 |
+| **Data Sources**      | Kaggle datasets & Synthetic data only                                                       |
+| **Tech Stack**        | Python, Jupyter/VS Code, SQL, Google Looker Studio, scikit-learn, Git/GitHub, Cursor AI IDE |
 
 ---
 
 ## Quick Start - Repository Setup
 
 ### 1. Clone the Repository
+
 ```bash
 git clone https://github.com/samuel-1-avson/RGT-NSS.git
 cd RGT-NSS
 ```
 
 ### 2. Set Up Environment
+
 ```bash
 # Create virtual environment
 python -m venv venv
@@ -41,6 +43,7 @@ pip install -r requirements.txt
 ```
 
 ### 3. Configure Git
+
 ```bash
 git config user.name "Your Name"
 git config user.email "your.email@example.com"
@@ -51,6 +54,7 @@ git config user.email "your.email@example.com"
 ## Git Branch Workflow (For Supervisor Review)
 
 ### Overview
+
 Every week and milestone has its own branch. All work is pushed to branches and reviewed via Pull Requests before merging to `main`.
 
 ```
@@ -62,18 +66,39 @@ main ──► milestone-project-a ──► PR ──► MERGE
 
 ### Branch Names
 
-| Week | Branch Name | Data Source |
-|------|-------------|-------------|
-| Week 1 | `week-01-tools-setup` | Kaggle - Customer Churn |
-| Week 2 | `week-02-sql-analytics` | Synthetic Retail DB |
-| Week 3 | `week-03-python-analysis` | Kaggle - Superstore Sales |
-| Week 4 | `week-04-dashboards` | Kaggle - Superstore Sales |
-| **Milestone A** | `milestone-project-a` | Kaggle - Healthcare/Retail |
-| Week 5 | `week-05-supervised-ml-1` | Kaggle - Customer Churn |
-| Week 6 | `week-06-supervised-ml-2` | Kaggle - House Prices |
-| Week 7 | `week-07-deployment` | Week 6 Model |
-| Week 8 | `week-08-mlops` | Week 7 API |
-| **Milestone B** | `milestone-project-b` | Kaggle - Classification Dataset |
+| Week            | Branch Name                | Data Source                     |
+| --------------- | -------------------------- | ------------------------------- |
+| Week 1          | `week-01-tools-setup`      | Kaggle - Customer Churn         |
+| Week 2          | `week-02-sql-analytics`    | Synthetic Retail DB             |
+| Week 3          | `week-03-python-analysis`  | Kaggle - Superstore Sales       |
+| Week 4          | `week-04-dashboards`       | Kaggle - Superstore Sales       |
+| **Milestone A** | `milestone-project-a`      | Kaggle - Healthcare/Retail      |
+| Week 5          | `week-05-supervised-ml-1`  | Kaggle - Customer Churn         |
+| Week 6          | `week-06-supervised-ml-2`  | Kaggle - House Prices           |
+| Week 7          | `week-07-deployment`       | Week 6 Model                    |
+| Week 8          | `week-08-mlops`            | Week 7 API                      |
+| **Milestone B** | `milestone-project-b`      | Kaggle - Classification Dataset |
+| Week 9          | `week-09-llm-fundamentals` | Local LLM (Llama 3)             |
+| Week 10         | `week-10-langchain-apps`   | Unstructured Text (Alice)       |
+| Week 11         | `week-11-rag-vector-db`    | Policy Documents (.md)          |
+| Week 12         | `week-12-evaluation`       | Ragas Evaluation Data           |
+| **Milestone C** | `milestone-project-c`      | Capstone - Telecom Policies     |
+
+---
+
+## 📑 Detailed Monthly Documentation
+
+- [Month 1: Data Analytics Foundations](MONTH_1_DATA_ANALYTICS.md)
+- [Month 2: Applied ML & MLOps](MONTH_2_ML_MLOPS.md)
+- [Month 3: LLM & Generative AI](MONTH_3_LLM_GENAI.md)
+
+---
+
+## 🏆 Milestone Project Deliverables
+
+- [Milestone A: Business Insights Pack](MILESTONE_A_BUSINESS_INSIGHTS.md)
+- [Milestone B: ML Microservice](MILESTONE_B_ML_MICROSERVICE.md)
+- [Milestone C: Telecom Policy Assistant](MILESTONE_C_TELECOM_POLICY_ASSISTANT.md)
 
 ---
 
@@ -81,29 +106,32 @@ main ──► milestone-project-a ──► PR ──► MERGE
 
 Each week follows this pattern:
 
-| Component | Time | Description |
-|-----------|------|-------------|
-| **Prep** | ≤60 min | Watch videos, read documentation |
-| **Guided Lab** | ≤120 min | Hands-on exercises with instructor |
-| **Independent Work** | ≤120 min | Apply concepts to Kaggle dataset |
-| **Deliverable** | - | Submit via Pull Request |
+| Component            | Time     | Description                        |
+| -------------------- | -------- | ---------------------------------- |
+| **Prep**             | ≤60 min  | Watch videos, read documentation   |
+| **Guided Lab**       | ≤120 min | Hands-on exercises with instructor |
+| **Independent Work** | ≤120 min | Apply concepts to Kaggle dataset   |
+| **Deliverable**      | -        | Submit via Pull Request            |
 
 ---
 
 ## Month 1: Data Analytics Foundations (Weeks 1-4)
 
 ### Week 1: Data Literacy, CRISP-DM, Tools Setup
+
 **Branch**: `week-01-tools-setup`
 
 **Dataset**: [Kaggle - Telco Customer Churn](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)
 
 #### Prep (≤60 min)
+
 - [ ] Watch CRISP-DM overview video
 - [ ] Read GitHub getting started guide
 - [ ] Complete Jupyter quickstart tutorial
 - [ ] Set up Cursor IDE
 
 #### Guided Lab (≤120 min)
+
 - [ ] Load Customer Churn dataset
 - [ ] Generate descriptive statistics (`.describe()`)
 - [ ] Identify missing values
@@ -111,6 +139,7 @@ Each week follows this pattern:
 - [ ] Create initial visualizations
 
 **Lab Code Template**:
+
 ```python
 import pandas as pd
 import numpy as np
@@ -143,12 +172,15 @@ plt.savefig('outputs/churn_distribution.png')
 ```
 
 #### Independent Work (≤120 min)
+
 - [ ] Document business understanding (problem statement, stakeholders)
 - [ ] Document data understanding (source, size, quality issues)
 - [ ] Write initial insights and next steps
 
 #### Deliverable
+
 **EDA Notebook** (`notebooks/week01_eda.ipynb`) with:
+
 - Business Understanding section
 - Data Understanding section
 - Initial findings and recommendations
@@ -159,15 +191,18 @@ plt.savefig('outputs/churn_distribution.png')
 ---
 
 ### Week 2: SQL for Analytics
+
 **Branch**: `week-02-sql-analytics`
 
 **Dataset**: Synthetic Retail Database (generated via Python)
 
 #### Prep (≤60 min)
+
 - [ ] Complete SQLBolt interactive lessons 1-12
 - [ ] Review Mode SQL Tutorial sections 1-4
 
 #### Guided Lab (≤120 min)
+
 - [ ] Generate synthetic retail database
 - [ ] Write basic SELECT queries
 - [ ] Practice JOINs (INNER, LEFT)
@@ -175,6 +210,7 @@ plt.savefig('outputs/churn_distribution.png')
 - [ ] Create window functions
 
 **Lab Code Template**:
+
 ```python
 import sqlite3
 import pandas as pd
@@ -220,7 +256,7 @@ pd.read_sql(query1, conn)
 
 # Query 2: Monthly revenue
 query2 = """
-SELECT 
+SELECT
     strftime('%Y-%m', order_date) as month,
     SUM(amount) as total_revenue,
     COUNT(*) as order_count
@@ -233,17 +269,21 @@ pd.read_sql(query2, conn)
 ```
 
 #### Independent Work (≤120 min)
+
 - [ ] Write 10 analytical queries
 - [ ] Export results to CSV
 - [ ] Document business insights for each query
 
 #### Deliverable
+
 **SQL Report** (`sql/week02_analysis.sql`) containing:
+
 - 10 analytical queries with detailed comments
 - Results exported as CSV files (`results/`)
 - Business insights narrative (`docs/sql_insights.md`)
 
 **Required Queries**:
+
 1. Customer count by city
 2. Monthly revenue trend
 3. Top 10 customers by total spend
@@ -260,15 +300,18 @@ pd.read_sql(query2, conn)
 ---
 
 ### Week 3: Python for Data Analysis
+
 **Branch**: `week-03-python-analysis`
 
 **Dataset**: [Kaggle - Superstore Sales](https://www.kaggle.com/datasets/vivek468/superstore-sales-dataset)
 
 #### Prep (≤60 min)
+
 - [ ] Review pandas user guide (getting started)
 - [ ] Read Matplotlib tutorial basics
 
 #### Guided Lab (≤120 min)
+
 - [ ] Load messy Superstore dataset
 - [ ] Handle missing values
 - [ ] Remove duplicates
@@ -276,6 +319,7 @@ pd.read_sql(query2, conn)
 - [ ] Create reusable cleaning functions
 
 **Lab Code Template**:
+
 ```python
 import pandas as pd
 import numpy as np
@@ -287,21 +331,21 @@ df = pd.read_csv('data/superstore.csv')
 def clean_superstore_data(df):
     """Clean Superstore dataset."""
     df_clean = df.copy()
-    
+
     # Remove duplicates
     df_clean = df_clean.drop_duplicates()
-    
+
     # Handle missing values
     df_clean['Postal Code'] = df_clean['Postal Code'].fillna(0)
-    
+
     # Fix data types
     df_clean['Order Date'] = pd.to_datetime(df_clean['Order Date'])
     df_clean['Ship Date'] = pd.to_datetime(df_clean['Ship Date'])
-    
+
     # Create new features
     df_clean['Shipping Days'] = (df_clean['Ship Date'] - df_clean['Order Date']).dt.days
     df_clean['Profit Margin'] = df_clean['Profit'] / df_clean['Sales']
-    
+
     return df_clean
 
 # Apply cleaning
@@ -312,13 +356,16 @@ df_clean.to_csv('data/superstore_cleaned.csv', index=False)
 ```
 
 #### Independent Work (≤120 min)
+
 - [ ] Build complete data cleaning pipeline
 - [ ] Create visualizations
 - [ ] Write unit tests for helper functions
 - [ ] Document pipeline
 
 #### Deliverable
+
 **Cleaned Dataset + Notebook** (`notebooks/week03_cleaning.ipynb`) with:
+
 - Data cleaning pipeline (reusable functions)
 - Visualizations (sales trends, profit by category, etc.)
 - Unit tests (`tests/test_cleaning.py`)
@@ -329,31 +376,38 @@ df_clean.to_csv('data/superstore_cleaned.csv', index=False)
 ---
 
 ### Week 4: Visualization & Dashboards
+
 **Branch**: `week-04-dashboards`
 
 **Dataset**: Cleaned Superstore Sales (from Week 3)
 
 #### Prep (≤60 min)
+
 - [ ] Complete Looker Studio tutorials (Google Analytics Academy)
 - [ ] Read Storytelling With Data blog posts
 
 #### Guided Lab (≤120 min)
+
 - [ ] Connect Superstore data to Looker Studio
 - [ ] Create KPI scorecards (Total Sales, Total Profit, Order Count)
 - [ ] Build charts (line chart for trends, bar chart for categories)
 - [ ] Add interactive filters (date range, region, category)
 
 #### Independent Work (≤120 min)
+
 - [ ] Design complete dashboard layout
 - [ ] Add calculated fields
 - [ ] Write stakeholder memo
 
 #### Deliverable
+
 **Interactive Dashboard** + **Stakeholder Memo**:
+
 - Looker Studio dashboard link (published)
 - 1-page stakeholder memo (`docs/stakeholder_memo_week04.md`)
 
 **Dashboard Requirements**:
+
 - Minimum 5 visualizations
 - KPI scorecards (Sales, Profit, Orders, Avg Order Value)
 - Interactive filters (Date, Region, Category, Segment)
@@ -364,6 +418,7 @@ df_clean.to_csv('data/superstore_cleaned.csv', index=False)
 ---
 
 ## Milestone Project A: Business Insights Pack
+
 **Branch**: `milestone-project-a` | **Due**: End of Week 4 | **Weight**: 25%
 
 **Dataset**: [Kaggle - Heart Disease UCI](https://www.kaggle.com/datasets/uciml/heart-disease-database) OR [Kaggle - Diabetes](https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database)
@@ -371,23 +426,27 @@ df_clean.to_csv('data/superstore_cleaned.csv', index=False)
 ### Components
 
 #### 1. Cleaned Dataset (25%)
+
 - [ ] Raw data file (`data/raw/`)
 - [ ] Cleaned data file (`data/cleaned/`)
 - [ ] Data dictionary (`docs/data_dictionary.md`)
 - [ ] Cleaning pipeline script (`scripts/data_cleaning.py`)
 
 #### 2. SQL Analysis (25%)
+
 - [ ] 10+ analytical queries (`sql/`)
 - [ ] Results exported as CSVs (`results/`)
 - [ ] Query documentation with business context
 
 #### 3. Interactive Dashboard (25%)
+
 - [ ] Google Looker Studio dashboard
 - [ ] Minimum 5 visualizations
 - [ ] Interactive filters and parameters
 - [ ] KPI scorecards
 
 #### 4. Documentation & Presentation (25%)
+
 - [ ] Comprehensive README (`README.md`)
 - [ ] Business problem statement
 - [ ] Methodology explanation
@@ -395,6 +454,7 @@ df_clean.to_csv('data/superstore_cleaned.csv', index=False)
 - [ ] 3-minute recorded walkthrough (Loom/Zoom)
 
 ### Submission Checklist
+
 - [ ] GitHub repository with all code
 - [ ] README.md with clear instructions
 - [ ] All datasets (or download links)
@@ -410,15 +470,18 @@ df_clean.to_csv('data/superstore_cleaned.csv', index=False)
 ## Month 2: Applied ML & MLOps (Weeks 5-8)
 
 ### Week 5: Supervised Learning 1 (scikit-learn)
+
 **Branch**: `week-05-supervised-ml-1`
 
 **Dataset**: [Kaggle - Telco Customer Churn](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)
 
 #### Prep (≤60 min)
+
 - [ ] Complete scikit-learn intro tutorial
 - [ ] Review ML problem framing guide
 
 #### Guided Lab (≤120 min)
+
 - [ ] Load and prepare churn dataset
 - [ ] Implement train/test split (80/20)
 - [ ] Train baseline models:
@@ -432,6 +495,7 @@ df_clean.to_csv('data/superstore_cleaned.csv', index=False)
   - ROC-AUC
 
 **Lab Code Template**:
+
 ```python
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
@@ -460,7 +524,7 @@ for name, model in models.items():
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
     y_prob = model.predict_proba(X_test)[:, 1]
-    
+
     results[name] = {
         'accuracy': accuracy_score(y_test, y_pred),
         'precision': precision_score(y_test, y_pred),
@@ -475,12 +539,15 @@ print(results_df)
 ```
 
 #### Independent Work (≤120 min)
+
 - [ ] Document model selection rationale
 - [ ] Create metric comparison table
 - [ ] Use Cursor to auto-document experiment logs
 
 #### Deliverable
+
 **ML Notebook** (`notebooks/week05_baseline_models.ipynb`) with:
+
 - Clear problem statement
 - Baseline models with metric comparison
 - Model selection rationale
@@ -490,21 +557,25 @@ print(results_df)
 ---
 
 ### Week 6: Supervised Learning 2 & Model Interpretability
+
 **Branch**: `week-06-supervised-ml-2`
 
 **Dataset**: [Kaggle - House Prices](https://www.kaggle.com/c/house-prices-advanced-regression-techniques)
 
 #### Prep (≤60 min)
+
 - [ ] Review scikit-learn pipelines documentation
 - [ ] Read about model interpretability techniques
 
 #### Guided Lab (≤120 min)
+
 - [ ] Build complete ML pipeline with preprocessing
 - [ ] Implement hyperparameter tuning (GridSearchCV)
 - [ ] Compare tuned vs baseline performance
 - [ ] Interpret features using permutation importance
 
 **Lab Code Template**:
+
 ```python
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
@@ -558,12 +629,15 @@ importance_df = pd.DataFrame({
 ```
 
 #### Independent Work (≤120 min)
+
 - [ ] Complete pipeline with all preprocessing
 - [ ] Generate SHAP summary plots (optional)
 - [ ] Document feature importance findings
 
 #### Deliverable
+
 **Reproducible Pipeline** (`scripts/week06_ml_pipeline.py`) with:
+
 - Complete preprocessing pipeline
 - Tuned model with optimal parameters
 - Feature interpretation analysis
@@ -573,21 +647,25 @@ importance_df = pd.DataFrame({
 ---
 
 ### Week 7: Data to Deployment (MLOps Lite)
+
 **Branch**: `week-07-deployment`
 
 **Dataset**: Model from Week 6
 
 #### Prep (≤60 min)
+
 - [ ] Complete FastAPI tutorial
 - [ ] Read Docker getting started guide
 
 #### Guided Lab (≤120 min)
+
 - [ ] Package Week 6 model
 - [ ] Create FastAPI app with `/predict` endpoint
 - [ ] Add input validation with Pydantic
 - [ ] Test API locally
 
 **Lab Code Template**:
+
 ```python
 # api/main.py
 from fastapi import FastAPI
@@ -619,24 +697,27 @@ def health_check():
 @app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest):
     # Prepare input
-    features = np.array([[request.LotArea, request.OverallQual, 
+    features = np.array([[request.LotArea, request.OverallQual,
                           request.OverallCond, request.YearBuilt]])
-    
+
     # Predict
     prediction = model.predict(features)[0]
-    
+
     return PredictionResponse(predicted_price=prediction)
 
 # Run: uvicorn api.main:app --reload
 ```
 
 #### Independent Work (≤120 min)
+
 - [ ] Document API usage
 - [ ] Use Cursor to generate API tests
 - [ ] Create requirements.txt for API
 
 #### Deliverable
+
 **Local API + README** (`api/`) containing:
+
 - FastAPI application code
 - API documentation
 - Usage examples
@@ -647,58 +728,70 @@ def predict(request: PredictionRequest):
 ---
 
 ### Week 8: MLOps & Model Monitoring
+
 **Branch**: `week-08-mlops`
 
 **Dataset**: Week 7 API
 
 #### Prep (≤60 min)
+
 - [ ] Review ML model cards documentation
 - [ ] Read about experiment tracking tools
 
 #### Guided Lab (≤120 min)
+
 - [ ] Create Model Card for your model
 - [ ] Set up basic logging
 - [ ] Document model limitations
 
 **Model Card Template**:
+
 ```markdown
 # Model Card: House Price Predictor
 
 ## Model Description
+
 - **Type**: Regression
 - **Architecture**: Random Forest Regressor
 - **Date**: 2025-02-XX
 
 ## Intended Use
+
 - **Primary Use**: Predict house prices for real estate analysis
 - **Users**: Data analysts, real estate professionals
 
 ## Training Data
+
 - **Source**: Kaggle House Prices dataset
 - **Size**: 1,460 samples
 - **Features**: LotArea, OverallQual, OverallCond, YearBuilt, Neighborhood, HouseStyle
 
 ## Performance
+
 - **Metric**: RMSE
 - **Value**: 35,000
 - **Test Set**: 20% holdout
 
 ## Limitations
+
 - Limited to Ames, Iowa housing market
 - Does not account for market fluctuations
 - Missing features like school district quality
 
 ## Ethical Considerations
+
 - Model may perpetuate historical pricing biases
 - Should not be used for discriminatory lending practices
 ```
 
 #### Independent Work (≤120 min)
+
 - [ ] Complete Model Card
 - [ ] Prepare for Milestone Project B
 - [ ] Practice demo presentation
 
 #### Deliverable
+
 **Model Card** (`docs/model_card.md`) + **Monitoring Setup**
 
 **Commit Message**: `week-08: Add model card and monitoring setup`
@@ -706,6 +799,7 @@ def predict(request: PredictionRequest):
 ---
 
 ## Milestone Project B: ML Microservice
+
 **Branch**: `milestone-project-b` | **Due**: End of Week 8 | **Weight**: 25%
 
 **Dataset**: [Kaggle - Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) OR [Kaggle - Customer Churn](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)
@@ -713,12 +807,14 @@ def predict(request: PredictionRequest):
 ### Components
 
 #### 1. Trained Model (20%)
+
 - [ ] Serialized model file (`models/model.pkl`)
 - [ ] Preprocessing pipeline (`models/preprocessor.pkl`)
 - [ ] Training notebook/script (`notebooks/training.ipynb`)
 - [ ] **Model Card** (`docs/model_card.md`)
 
 #### 2. FastAPI Application (30%)
+
 - [ ] `/predict` endpoint (POST)
 - [ ] `/health` endpoint (GET)
 - [ ] Input validation with Pydantic
@@ -726,21 +822,25 @@ def predict(request: PredictionRequest):
 - [ ] Request/response logging
 
 #### 3. Documentation (25%)
+
 - [ ] README with setup instructions
 - [ ] API documentation
 - [ ] Usage examples (curl, Python)
 - [ ] Architecture diagram
 
 #### 4. Testing (15%)
+
 - [ ] Unit tests for API endpoints
 - [ ] Integration test script
 - [ ] Sample requests/responses
 
 #### 5. Demo (10%)
+
 - [ ] CLI client or notebook demonstrating API usage
 - [ ] 5-minute live demo or recorded walkthrough
 
 ### Submission Checklist
+
 - [ ] GitHub repository with all code
 - [ ] requirements.txt with all dependencies
 - [ ] README with clear setup instructions
@@ -754,26 +854,211 @@ def predict(request: PredictionRequest):
 
 ---
 
+## Month 3: LLM & Generative AI (Weeks 9-12)
+
+### Week 9: LLM Fundamentals & Prompt Engineering
+
+**Branch**: `week-09-llm-fundamentals`
+
+**Tools**: Ollama, Llama 3, Python
+
+#### Prep (≤60 min)
+
+- [ ] Read "Attention Is All You Need" (The high-level summary)
+- [ ] Watch Andrej Karpathy's "Intro to Large Language Models"
+- [ ] Install Ollama and pull `llama3`
+
+#### Guided Lab (≤120 min)
+
+- [ ] Connect Python to local Ollama instance
+- [ ] Experiment with Zero-Shot vs Few-Shot prompting
+- [ ] Implement Chain-of-Thought (CoT) reasoning
+- [ ] Compare Role-based vs Instruction-based outputs
+
+#### Independent Work (≤120 min)
+
+- [ ] Build a "Prompt Cookbook" with 5 production patterns
+- [ ] Implement safety guardrails (system prompts)
+- [ ] Document logical hallucinations in math tasks
+
+#### Deliverable
+
+**Prompt Cookbook** (`prompts/cookbook.md`) + **Examples** (`prompting_examples.py`)
+
+**Commit Message**: `week-09: Add LLM prompting cookbook and examples`
+
+---
+
+### Week 10: LangChain Apps & LCEL
+
+**Branch**: `week-10-langchain-apps`
+
+**Framework**: LangChain, LCEL
+
+#### Prep (≤60 min)
+
+- [ ] Complete LangChain "Expression Language" (LCEL) tutorial
+- [ ] Review RecursiveCharacterTextSplitter documentation
+
+#### Guided Lab (≤120 min)
+
+- [ ] Process unstructured text data (Alice in Wonderland)
+- [ ] Implement a basic Q&A chain with LCEL
+- [ ] Add conversation buffer memory
+- [ ] Log performance metrics (tokens/sec, latency)
+
+#### Independent Work (≤120 min)
+
+- [ ] Build a modular Q&A app over custom text
+- [ ] Implement recursive splitting strategies
+- [ ] Write unit tests for chain components
+
+#### Deliverable
+
+**Q&A Application** (`app/qa_app.py`) + **Logging Utility** (`app/logging_utils.py`)
+
+**Commit Message**: `week-10: Build LangChain Q&A app with LCEL`
+
+---
+
+### Week 11: RAG & Vector Databases
+
+**Branch**: `week-11-rag-vector-db`
+
+**Stack**: FAISS, LangChain, Embeddings
+
+#### Prep (≤60 min)
+
+- [ ] Watch "Vector Databases Explained" (Pinecone/FAISS)
+- [ ] Review semantic search concepts
+
+#### Guided Lab (≤120 min)
+
+- [ ] Generate semantic embeddings for policy docs
+- [ ] Store and index vectors in FAISS
+- [ ] Implement similarity search with Top-K retrieval
+- [ ] Create an end-to-end RAG pipeline
+
+#### Independent Work (≤120 min)
+
+- [ ] Optimize chunk sizes (500 vs 1000 tokens)
+- [ ] Measure retrieval "Hit Rate"
+- [ ] Implement citation-backed answers
+
+#### Deliverable
+
+**RAG Pipeline** (`rag/pipeline.py`) + **FAISS Index** (`data/faiss_index/`)
+
+**Commit Message**: `week-11: Implement RAG pipeline with FAISS vector store`
+
+---
+
+### Week 12: Evaluation & Hardening
+
+**Branch**: `week-12-evaluation`
+
+**Framework**: Ragas, Unit Testing
+
+#### Prep (≤60 min)
+
+- [ ] Read Ragas documentation for Faithfulness/Relevancy
+- [ ] Review AI safety and bias checklists
+
+#### Guided Lab (≤120 min)
+
+- [ ] Build an evaluation dataset (Query/Context/Ground Truth)
+- [ ] Run Ragas metrics over the RAG pipeline
+- [ ] Identify and fix "unfaithful" responses
+- [ ] Add input/output safety filters
+
+#### Independent Work (≤120 min)
+
+- [ ] Perform full evaluation sweep
+- [ ] Benchmark latency under load
+- [ ] Finalize "minted" prompt suite
+
+#### Deliverable
+
+**Evaluation Report** (`evaluation/report.json`) + **Evaluation Suite** (`tests/evaluation.py`)
+
+**Commit Message**: `week-12: Complete RAG evaluation with Ragas`
+
+---
+
+## Milestone Project C: Telecom Policy Assistant (Capstone)
+
+**Branch**: `milestone-project-c` | **Due**: Graduation | **Weight**: 50%
+
+### Project Overview
+
+The "minted" capstone project integrating Retrieval-Augmented Generation (RAG) with the Milestone B ML microservice.
+
+### Components
+
+#### 1. RAG Core (30%)
+
+- [x] Document ingestion & semantic metadata
+- [x] FAISS Vector Database integration
+- [x] Citation-backed generation logic
+- [x] Conversation memory persistence
+
+#### 2. Cross-Module Integration (20%)
+
+- [x] Real-time ping to Milestone B Churn Predictor
+- [x] Risk-level visual badges in UI
+- [x] Retention toolkit suggestions based on risk
+
+#### 3. Modern Web Dashboard (30%)
+
+- [x] Next.js 15 Chat Interface
+- [x] Real-time token streaming
+- [x] Document management admin portal
+
+#### 4. Quality & Evaluation (20%)
+
+- [x] Full Ragas evaluation report
+- [x] Unit/Integration tests
+- [x] Load balancing & observability logs
+
+### Submission Checklist
+
+- [x] Fully functional RAG backend (FastAPI)
+- [x] Modern interactive UI (Next.js)
+- [x] Verified evaluation metrics
+- [x] Integrated Churn Prediction alerts
+- [x] Final Architecture Diagram
+- [x] 5-minute recorded presentation
+
+**Commit Message**: `milestone-c: Complete Capstone Telecom Policy Assistant`
+
+---
+
 ## Data Sources Summary
 
-| Week | Dataset | Source | Link |
-|------|---------|--------|------|
-| 1 | Customer Churn | Kaggle | [Link](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) |
-| 2 | Retail Database | Synthetic | Generated via Faker |
-| 3 | Superstore Sales | Kaggle | [Link](https://www.kaggle.com/datasets/vivek468/superstore-sales-dataset) |
-| 4 | Superstore Sales | Kaggle | [Link](https://www.kaggle.com/datasets/vivek468/superstore-sales-dataset) |
-| A | Heart Disease / Diabetes | Kaggle | [Link](https://www.kaggle.com/datasets/uciml/heart-disease-database) |
-| 5 | Customer Churn | Kaggle | [Link](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) |
-| 6 | House Prices | Kaggle | [Link](https://www.kaggle.com/c/house-prices-advanced-regression-techniques) |
-| 7 | House Prices Model | Week 6 | Trained model |
-| 8 | House Prices API | Week 7 | FastAPI app |
-| B | Credit Card Fraud | Kaggle | [Link](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) |
+| Week | Dataset                  | Source    | Link                                                                         |
+| ---- | ------------------------ | --------- | ---------------------------------------------------------------------------- |
+| 1    | Customer Churn           | Kaggle    | [Link](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)       |
+| 2    | Retail Database          | Synthetic | Generated via Faker                                                          |
+| 3    | Superstore Sales         | Kaggle    | [Link](https://www.kaggle.com/datasets/vivek468/superstore-sales-dataset)    |
+| 4    | Superstore Sales         | Kaggle    | [Link](https://www.kaggle.com/datasets/vivek468/superstore-sales-dataset)    |
+| A    | Heart Disease / Diabetes | Kaggle    | [Link](https://www.kaggle.com/datasets/uciml/heart-disease-database)         |
+| 5    | Customer Churn           | Kaggle    | [Link](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)       |
+| 6    | House Prices             | Kaggle    | [Link](https://www.kaggle.com/c/house-prices-advanced-regression-techniques) |
+| 7    | House Prices Model       | Week 6    | Trained model                                                                |
+| 8    | House Prices API         | Week 7    | FastAPI app                                                                  |
+| B    | Credit Card Fraud        | Kaggle    | [Link](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)              |
+| 9    | Prompting Patterns       | Local     | Ollama / Llama 3                                                             |
+| 10   | Q&A Corpus               | Local     | Alice in Wonderland                                                          |
+| 11   | Policy Documents         | Local     | Internal Telecom Docs                                                        |
+| 12   | Ragas Metrics            | Local     | Evaluation Dataset                                                           |
+| C    | Telecom Policies         | Local     | Full Project Corpus                                                          |
 
 ---
 
 ## Commit Message Standards
 
 ### Format
+
 ```
 [week-XX|milestone-X|capstone]: [action] [description]
 
@@ -781,6 +1066,7 @@ def predict(request: PredictionRequest):
 ```
 
 ### Examples
+
 ```bash
 # Weekly commits
 week-01: Add EDA notebook with customer churn analysis
@@ -802,12 +1088,14 @@ capstone: Add evaluation harness with Ragas
 ## Documentation Standards
 
 ### Every Commit Must Include
+
 1. **Clear commit message** following format above
 2. **Updated README** if adding new features
 3. **Inline comments** for complex code
 4. **Docstrings** for all functions
 
 ### Every Week Must Include
+
 1. **README.md** in week folder with:
    - Week objectives
    - Dataset used
@@ -818,6 +1106,7 @@ capstone: Add evaluation harness with Ragas
 4. **Documentation** of findings
 
 ### Every Milestone Must Include
+
 1. **Comprehensive README** with setup instructions
 2. **requirements.txt** with all dependencies
 3. **Model Card** (for ML projects)
@@ -828,17 +1117,18 @@ capstone: Add evaluation harness with Ragas
 
 ## Assessment Rubric
 
-| Dimension | Weight | Description |
-|-----------|--------|-------------|
-| **Technical** | 40% | Correct implementation, reproducible, tested |
-| **Analytical** | 30% | Problem framing, metrics, insights |
-| **Communication** | 30% | Documentation, presentation, clarity |
+| Dimension         | Weight | Description                                  |
+| ----------------- | ------ | -------------------------------------------- |
+| **Technical**     | 40%    | Correct implementation, reproducible, tested |
+| **Analytical**    | 30%    | Problem framing, metrics, insights           |
+| **Communication** | 30%    | Documentation, presentation, clarity         |
 
 ---
 
 ## Resources
 
 ### Kaggle Datasets
+
 - [Telco Customer Churn](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)
 - [Superstore Sales](https://www.kaggle.com/datasets/vivek468/superstore-sales-dataset)
 - [House Prices](https://www.kaggle.com/c/house-prices-advanced-regression-techniques)
@@ -846,9 +1136,8 @@ capstone: Add evaluation harness with Ragas
 - [Credit Card Fraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
 
 ### Documentation
+
 - [CRISP-DM Guide](https://www.datascience-pm.com/crisp-dm-2/)
 - [scikit-learn User Guide](https://scikit-learn.org/stable/user_guide.html)
 
 ---
-
-
