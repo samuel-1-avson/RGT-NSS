@@ -1,176 +1,129 @@
 # Quick Start Guide
 
-## Your GitHub Repository
+> **Everything you need to set up and deliver your AI/Data training tasks.**
+
+## 🌐 GitHub Repository
+
 **URL**: https://github.com/samuel-1-avson/RGT-NSS.git
 
 ---
 
-## Setup Instructions
+## 🛠️ Environment Setup
 
-### 1. Clone Your Repository
+### 1. Python Environment (Months 1-3)
+
 ```bash
+# Clone and enter repository
 git clone https://github.com/samuel-1-avson/RGT-NSS.git
 cd RGT-NSS
-```
 
-### 2. Set Up Environment
-```bash
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv venv
+# Windows: venv\Scripts\activate | Mac/Linux: source venv/bin/activate
 
-# Activate (Windows)
-venv\Scripts\activate
-
-# Activate (Mac/Linux)
-source venv/bin/activate
-
-# Install dependencies
+# Install core dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Configure Git
-```bash
-git config user.name "Your Name"
-git config user.email "your.email@example.com"
-```
+### 2. Local LLM Setup (Month 3)
+
+Required for Week 9-12 and the Capstone Project.
+
+1. **Install Ollama**: Download from [ollama.com](https://ollama.com)
+2. **Pull Required Model**:
+   ```bash
+   ollama pull llama3
+   ```
+
+### 3. Frontend Environment (Capstone)
+
+Required for the Telecom Policy Assistant UI.
+
+1. **Install Node.js**: (Version 20.x or higher)
+2. **Install Web Dependencies**:
+   ```bash
+   cd 03-month-3-llm-genai/capstone-project/web-app
+   npm install
+   ```
 
 ---
 
-## Weekly Workflow
+## 📅 Branch Schedule
 
-### Monday: Start New Week
+| Week            | Branch Name                | Focus                 |
+| --------------- | -------------------------- | --------------------- |
+| Week 1          | `week-01-tools-setup`      | EDA & Tools           |
+| Week 2          | `week-02-sql-analytics`    | SQL Foundations       |
+| Week 3          | `week-03-python-analysis`  | Python/Pandas         |
+| Week 4          | `week-04-dashboards`       | Looker Dashboards     |
+| **Milestone A** | **`milestone-project-a`**  | **Business Insights** |
+| Week 5          | `week-05-supervised-ml-1`  | Baseline ML           |
+| Week 6          | `week-06-supervised-ml-2`  | Tuned Pipelines       |
+| Week 7          | `week-07-deployment`       | FastAPI Serving       |
+| Week 8          | `week-08-mlops`            | MLOps & Monitoring    |
+| **Milestone B** | **`milestone-project-b`**  | **ML Microservice**   |
+| Week 9          | `week-09-llm-fundamentals` | Prompt Engineering    |
+| Week 10         | `week-10-langchain-apps`   | LCEL & Chains         |
+| Week 11         | `week-11-rag-vector-db`    | FAISS & RAG           |
+| Week 12         | `week-12-evaluation`       | Ragas & QA            |
+| **Milestone C** | **`milestone-project-c`**  | **Capstone RAG App**  |
+
+---
+
+## 🔄 Delivery Workflow
+
+### 1. Starting a Task
+
 ```bash
-# Update main branch
 git checkout main
 git pull origin main
-
-# Create new branch for the week
-git checkout -b week-01-tools-setup
+git checkout -b <branch-name>
 ```
 
-### Daily: Commit Progress
+### 2. Committing Progress
+
 ```bash
-# Add and commit your work
+# Standard Format: [week-XX|milestone-X]: [Action] [Description]
 git add .
-git commit -m "week-XX: Description of changes"
-git push origin week-XX-topic-name
-```
-
-### Friday: Submit for Review
-```bash
-# Push final changes
-git push origin week-XX-topic-name
-
-# Create Pull Request on GitHub
-# - Go to GitHub → Pull Requests → New PR
-# - Assign supervisor as reviewer
+git commit -m "week-09: Add CoT prompting patterns to cookbook"
+git push origin <branch-name>
 ```
 
 ---
 
-## Data Sources by Week
+## 📋 Quality Checklist
 
-| Week | Dataset | Source | Download Link |
-|------|---------|--------|---------------|
-| 1 | Customer Churn | Kaggle | [Download](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) |
-| 2 | Retail DB | Synthetic | Generated via script |
-| 3 | Superstore Sales | Kaggle | [Download](https://www.kaggle.com/datasets/vivek468/superstore-sales-dataset) |
-| 4 | Superstore Sales | Week 3 | Use cleaned data |
-| A | Heart Disease | Kaggle | [Download](https://www.kaggle.com/datasets/uciml/heart-disease-database) |
-| 5 | Customer Churn | Kaggle | [Download](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) |
-| 6 | House Prices | Kaggle | [Download](https://www.kaggle.com/c/house-prices-advanced-regression-techniques) |
-| B | Credit Card Fraud | Kaggle | [Download](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) |
+### Weekly Deliverables
 
----
+- ✅ Well-documented Notebook or Python script.
+- ✅ README.md explaining the specific approach.
+- ✅ Data exports (CSV) or visual outputs (PNG/JPG).
 
-## Branch Names
+### Milestone Deliverables
 
-```
-week-01-tools-setup
-week-02-sql-analytics
-week-03-python-analysis
-week-04-dashboards
-milestone-project-a
-week-05-supervised-ml-1
-week-06-supervised-ml-2
-week-07-deployment
-week-08-mlops
-milestone-project-b
-```
+- ✅ Production-grade code (FastAPI/Next.js).
+- ✅ Model Cards / Evaluation Reports.
+- ✅ Recorded Walkthrough Video.
+- ✅ Requirements.txt / Package.json maintenance.
 
 ---
 
-## Commit Message Format
+## 📈 Assessment Weights
 
-```
-week-XX: Brief description of changes
-
-- Detail 1
-- Detail 2
-```
-
-**Examples**:
-```
-week-01: Complete EDA with customer churn dataset
-
-- Add data loading and exploration notebook
-- Create visualizations for churn distribution
-- Document business and data understanding
-```
-
-```
-milestone-a: Complete Business Insights Pack
-
-- Add cleaned dataset with data dictionary
-- Create 12 SQL queries for risk analysis
-- Build Looker Studio dashboard
-```
+| Component   | Weight | Focus              |
+| ----------- | ------ | ------------------ |
+| Milestone A | 25%    | Analytics & SQL    |
+| Milestone B | 25%    | ML & Deployment    |
+| Milestone C | 50%    | Capstone (LLM/RAG) |
 
 ---
 
-## Documentation Requirements
+## 🔗 Key Resources
 
-### Every Week Must Include:
-1. ✅ README.md with objectives and instructions
-2. ✅ Dataset used (Kaggle or synthetic)
-3. ✅ Code/notebooks with comments
-4. ✅ Output files (CSV, images, etc.)
-5. ✅ Clear commit messages
-
-### Every Milestone Must Include:
-1. ✅ Comprehensive README
-2. ✅ requirements.txt
-3. ✅ Model Card (for ML projects)
-4. ✅ Demo video link
-5. ✅ All components from curriculum
+- [Main Project README](README.md) - Full Curriculum
+- [GITHUB_SETUP.md](GITHUB_SETUP.md) - Extended Git Guide
+- [Month 3 Guide](MONTH_3_LLM_GENAI.md) - LLM Deep-Dive
 
 ---
 
-## Assessment Weights
-
-| Deliverable | Weight |
-|-------------|--------|
-| Milestone A | 50% |
-| Milestone B | 50% |
-
----
-
-## Resources
-
-- [Main README](README.md) - Complete program guide
-- [GITHUB_SETUP.md](GITHUB_SETUP.md) - Detailed Git workflow
-- [Kaggle](https://kaggle.com) - Datasets
-- [scikit-learn docs](https://scikit-learn.org) - ML reference
-
----
-
-## Need Help?
-
-1. Check the week-specific README for detailed instructions
-2. Review the lab code templates
-3. Ask your supervisor during review
-4. Check documentation links in each week's README
-
----
-
-**Good luck with your training! 🚀**
+**Happy Coding! 🚀**
