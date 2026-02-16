@@ -1,4 +1,4 @@
-# Monthly Audit Report: Month 3 - LLM & GenAI
+# Monthly Audit Report: Month 3 - LLM & GenAI (Milestone C)
 
 ## Overview
 
@@ -40,7 +40,7 @@ Month 3 focused on Large Language Models (LLMs), prompt engineering, and buildin
 
 ---
 
-### Milestone: Capstone RAG Policy Assistant
+### Milestone Project C: Telecom Policy Assistant (Capstone)
 
 The final project of the curriculum, integrating all previous learnings.
 

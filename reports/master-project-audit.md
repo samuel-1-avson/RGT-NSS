@@ -21,7 +21,7 @@ This report provides a high-level overview of the cumulative work performed over
 ### Month 3: LLM & Generative AI
 
 - **Core Skills**: Prompt Engineering, LangChain, RAG Architectures, Vector Databases (FAISS), Model Evaluation (Ragas).
-- **Key Project**: Capstone - RAG Policy Assistant.
+- **Key Project**: Milestone C - Telecom Policy Assistant (Capstone).
 - **Outcome**: Integrated predictive ML with generative AI to create a next-generation business tool.
 
 ---
