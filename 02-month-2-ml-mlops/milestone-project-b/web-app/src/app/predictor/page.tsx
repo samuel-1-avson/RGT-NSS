@@ -65,7 +65,7 @@ export default function PredictorPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customer_id: "WEB_" + Math.random().toString(36).substr(2, 9),
+          customer_id: "WEB_" + Math.random().toString(36).slice(2, 11),
           data: formData
         })
       });
