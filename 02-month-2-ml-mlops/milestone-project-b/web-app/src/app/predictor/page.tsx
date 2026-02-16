@@ -337,11 +337,37 @@ export default function PredictorPage() {
                       <CheckCircle2 className="w-4 h-4 text-blue-400" />
                       Protocol Recommendation
                     </h4>
-                    <p className="text-sm font-bold text-slate-300 leading-relaxed italic">
+                    <p className="text-sm font-bold text-slate-300 leading-relaxed italic mb-6">
                       {prediction.churn_prediction 
                         ? "Immediate retention campaign suggested: Offer loyalty incentive and contract upgrade path."
                         : "Maintain standard engagement. Strategic upsell opportunity for Fiber Optic services."}
                     </p>
+
+                    {prediction.churn_prediction && (
+                      <button 
+                        onClick={async () => {
+                          const btn = document.getElementById('rag-btn');
+                          if (btn) btn.innerText = 'CONSULTING AI...';
+                          try {
+                            const prompt = `This customer has a ${(prediction.churn_probability * 100).toFixed(1)}% churn risk. They have a ${formData.Contract} contract and use ${formData.InternetService}. What specific retention offer from our policy should we provide?`;
+                            const res = await fetch(`http://localhost:8001/chat?query=${encodeURIComponent(prompt)}&strategy=verified`, {
+                              method: 'POST'
+                            });
+                            const data = await res.json();
+                            alert("AI RETENTION ADVICE:\n\n" + data.answer);
+                          } catch (e) {
+                            alert("AI assistant is offline. Please ensure Milestone C backend is running on port 8001.");
+                          } finally {
+                            if (btn) btn.innerText = 'ASK AI FOR RETENTION OFFER';
+                          }
+                        }}
+                        id="rag-btn"
+                        className="w-full py-3 bg-emerald-500 text-slate-900 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all flex items-center justify-center gap-2"
+                      >
+                        <BrainCircuit className="w-4 h-4" />
+                        ASK AI FOR RETENTION OFFER
+                      </button>
+                    )}
                   </div>
 
                   <button 
