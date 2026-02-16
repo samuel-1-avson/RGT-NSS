@@ -34,11 +34,11 @@ async def health_check():
     return {"status": "healthy", "service": "capstone-rag-api"}
 
 @app.post("/chat")
-async def chat_endpoint(query: str):
-    """Chat endpoint for Q&A with policy documents."""
+async def chat_endpoint(query: str, strategy: str = "simple"):
+    """Chat endpoint for Q&A with policy documents using selected strategy."""
     from app.rag.generation import generate_answer
     try:
-        response = await generate_answer(query)
+        response = await generate_answer(query, strategy=strategy)
         return response
     except Exception as e:
         return {"error": str(e)}

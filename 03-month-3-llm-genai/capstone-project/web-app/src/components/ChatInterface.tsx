@@ -18,6 +18,7 @@ type Message = {
 
 export default function ChatInterface() {
   const [query, setQuery] = useState("");
+  const [strategy, setStrategy] = useState("simple");
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -49,7 +50,7 @@ export default function ChatInterface() {
     setLoading(true);
 
     try {
-      const data = await sendQuery(userMsg.content);
+      const data = await sendQuery(userMsg.content, strategy);
       
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -70,13 +71,29 @@ export default function ChatInterface() {
   return (
     <div className="flex flex-col h-[700px] w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
       {/* Header */}
-      <div className="p-5 border-b border-slate-100 bg-white flex items-center gap-4 shadow-sm z-10">
-        <div className="p-2.5 bg-indigo-50 rounded-xl border border-indigo-100">
-          <Bot className="w-6 h-6 text-indigo-600" />
+      <div className="p-5 border-b border-slate-100 bg-white flex items-center justify-between shadow-sm z-10">
+        <div className="flex items-center gap-4">
+          <div className="p-2.5 bg-indigo-50 rounded-xl border border-indigo-100">
+            <Bot className="w-6 h-6 text-indigo-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-slate-900 text-lg">Policy Assistant</h2>
+            <p className="text-sm text-slate-500">RAG-Powered Knowledge Base</p>
+          </div>
         </div>
-        <div>
-          <h2 className="font-bold text-slate-900 text-lg">Policy Assistant</h2>
-          <p className="text-sm text-slate-500">RAG-Powered Knowledge Base</p>
+
+        <div className="flex items-center gap-2">
+           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pr-1">Strategy:</label>
+           <select 
+             value={strategy}
+             onChange={(e) => setStrategy(e.target.value)}
+             className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 outline-none cursor-pointer hover:bg-white transition-colors"
+           >
+              <option value="simple">Simple RAG</option>
+              <option value="multi_query">Multi-Query</option>
+              <option value="hyde">HyDE RAG</option>
+              <option value="verified">Verified RAG</option>
+           </select>
         </div>
       </div>
 
@@ -144,6 +161,9 @@ export default function ChatInterface() {
                  <span className="w-2.5 h-2.5 bg-slate-400 rounded-full animate-bounce delay-75" />
                  <span className="w-2.5 h-2.5 bg-slate-400 rounded-full animate-bounce delay-150" />
                </div>
+               <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-widest animate-pulse">
+                 {strategy === 'verified' ? 'Verifying facts...' : strategy === 'multi_query' ? 'Exploring angles...' : strategy === 'hyde' ? 'Thinking hypothetically...' : 'Searching...'}
+               </p>
              </div>
           </div>
         )}
