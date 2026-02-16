@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #00f2ff; /* High-contrast Cyan */
+  --color-brand-secondary: #ff2d55; /* High-contrast Rose */
+  --color-brand-tertiary: #00ff7f; /* Spring Green */
+  --color-brand-bg: #020202;
+  --color-card-bg: rgba(20, 20, 28, 0.8);
+  --color-card-border: rgba(255, 255, 255, 0.12);
+}
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
+}
+
+body {
+  color: #f4f4f5; /* Zinc 100 */
+  background: black;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  border: 2px solid black;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Enhanced Glassmorphism */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+}
+
+.text-glow {
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+}
