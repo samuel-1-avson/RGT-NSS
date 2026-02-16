@@ -1,0 +1,8 @@
+
+Artificial intelligence (AI) is intelligence demonstrated by machines, as opposed to the natural intelligence displayed by animals including humans. AI research has been defined as the field of study of intelligent agents, which are any devices that perceive their environment and take actions that maximize their chance of successfully achieving their goals.
+
+Machine learning (ML) is a field of inquiry devoted to understanding and building methods that 'learn', that is, methods that leverage data to improve performance on some set of tasks. It is seen as a part of artificial intelligence. Machine learning algorithms build a model based on sample data, known as training data, in order to make predictions or decisions without being explicitly programmed to do so.
+
+Vector search, also known as vector similarity search, is a technique used to find items that are similar to a given query, based on their semantic meaning rather than just keyword matches. This is achieved by converting items (like text chunks) into dense numerical vectors called embeddings using neural networks. High-dimensional vector spaces allow us to calculate the distance (like Cosine Similarity) between vectors.
+
+FAISS (Facebook AI Similarity Search) is a library for efficient similarity search and clustering of dense vectors. It contains algorithms that search in sets of vectors of any size, up to ones that possibly do not fit in RAM. It also contains supporting code for evaluation and parameter tuning.
