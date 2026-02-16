@@ -138,12 +138,16 @@ export default function ChatInterface() {
               {/* Citations */}
               {msg.sources && msg.sources.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-1 px-1">
-                  {msg.sources.map((source, idx) => (
-                    <span key={idx} className="flex items-center gap-1.5 text-[11px] uppercase font-bold tracking-wider text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-                      <FileText className="w-3.5 h-3.5 text-indigo-500" />
-                      {source || "Unknown Source"}
-                    </span>
-                  ))}
+                  {msg.sources.map((source, idx) => {
+                    // Safety check: ensure only basename is shown even if API fails to sanitize
+                    const cleanName = source.split(/[\\/]/).pop() || "Source";
+                    return (
+                      <span key={idx} className="flex items-center gap-1.5 text-[11px] uppercase font-black tracking-wider text-slate-400 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm group-hover:border-indigo-200 transition-colors">
+                        <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                        {cleanName}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
             </div>

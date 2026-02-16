@@ -8,22 +8,40 @@ from typing import List, Dict, Any
 # Initialize Global LLM (Ollama)
 llm = ChatOllama(model="llama3", temperature=0, base_url="http://127.0.0.1:11434")
 
+import os
+
 def format_docs(docs):
-    """Format documents with source metadata."""
-    return "\n\n".join(f"[Source: {d.metadata.get('source', 'Unknown')}]\n{d.page_content}" for d in docs)
+    """Format documents with sanitized source names (filenames only)."""
+    formatted = []
+    for d in docs:
+        source = os.path.basename(d.metadata.get('source', 'Unknown'))
+        formatted.append(f"### Source: {source}\n{d.page_content}")
+    return "\n\n---\n\n".join(formatted)
 
 def create_rag_chain():
-    """Create a standard RAG chain."""
-    template = """You are a helpful Telecom Policy Assistant. Answer the question based ONLY on the following context.
+    """Create an enterprise-grade RAG chain with structured output requirements."""
+    template = """
+    # ROLE
+    You are a Senior Telecom Compliance Officer. Your goal is to provide accurate, professional, and well-structured advice based on official policy documentation.
     
-    If the answer is not in the context, say "I don't have enough information in the policy documents to answer that."
+    # SYSTEM CONSTRAINTS
+    1. Answer the question based ONLY on the provided context.
+    2. If the context is insufficient, state: "I don't have enough specific information in the official policy documents to provide a definitive answer."
+    3. NEVER mention system paths, internal server details, or technical metadata.
     
-    Always cite the source document name for your answer.
+    # FORMATTING INSTRUCTIONS
+    - Use clear markdown headers (##) for major sections.
+    - Use **bolding** for critical dates, monetary values, or policy names.
+    - Use bulleted lists for multi-step procedures or offer details.
+    - Always conclude with a "Sources Cited" section using only the filenames provided.
     
-    Context:
+    # CONTEXT
     {context}
     
-    Question: {question}
+    # QUESTION
+    {question}
+    
+    # RESPONSE
     """
     prompt = ChatPromptTemplate.from_template(template)
     
@@ -64,12 +82,16 @@ async def generate_hypothetical_answer(question: str) -> str:
 
 async def verify_answer(question: str, context: str, answer: str) -> str:
     """Verified: Self-correction step to ensure faithfulness to context."""
-    template = """You are a quality controller. Compare the provided Answer against the Context.
+    template = """You are a Quality Control Auditor. Compare the provided Answer against the Context.
     
+    # AUDIT RULES
     1. Identify any claims in the Answer not supported by the Context.
     2. If there are hallucinations, rewrite the Answer to be 100% faithful to the Context.
-    3. Ensure citations are preserved.
-    4. If the Answer is already perfect, just return the original Answer.
+    3. Ensure citations (filenames) are preserved.
+    4. If the Answer is perfect, return it as is.
+    
+    # CRITICAL INSTRUCTION
+    Return ONLY the final professional answer. Do NOT include your internal reasoning, comparison steps, or audit notes in the output.
     
     Question: {question}
     Context: {context}
@@ -112,6 +134,6 @@ async def generate_answer(question: str, strategy: str = "simple"):
     return {
         "answer": answer,
         "strategy_used": strategy,
-        "sources": list(set([d.metadata.get("source") for d in docs])),
+        "sources": list(set([os.path.basename(d.metadata.get("source", "Unknown")) for d in docs])),
         "context": [d.page_content for d in docs]
     }
