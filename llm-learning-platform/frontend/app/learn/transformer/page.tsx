@@ -900,8 +900,8 @@ const AttentionSection = () => {
               <div className="space-y-3">
                 {[
                   { step: 1, title: "Create Q, K, V", desc: "Linear projections from input", active: animationPhase === "query" || animationPhase === "idle" },
-                  { step: 2, title: "Compute Scores", desc: "Q × K<sup>T</sup> for similarity", active: animationPhase === "score" },
-                  { step: 3, title: "Scale & Softmax", desc: "Divide by √d<sub>k</sub>, then normalize", active: animationPhase === "softmax" },
+                  { step: 2, title: "Compute Scores", desc: <span>Q × K<sup className="text-amber-400">T</sup> for similarity</span>, active: animationPhase === "score" },
+                  { step: 3, title: "Scale & Softmax", desc: <span>Divide by √d<sub className="text-amber-400">k</sub>, then normalize</span>, active: animationPhase === "softmax" },
                   { step: 4, title: "Weighted Sum", desc: "Multiply by V for output", active: animationPhase === "value" },
                 ].map((item) => (
                   <motion.div
@@ -921,7 +921,7 @@ const AttentionSection = () => {
                       <h5 className={`font-semibold ${item.active ? "text-amber-400" : "text-white"}`}>
                         {item.title}
                       </h5>
-                      <p className="text-slate-500 text-sm" dangerouslySetInnerHTML={{ __html: item.desc }} />
+                      <p className="text-slate-500 text-sm">{item.desc}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -1297,10 +1297,10 @@ const FeedForwardSection = () => {
 
               {/* Activation Graph */}
               <div className="relative h-48 bg-slate-950 rounded-xl overflow-hidden">
-                <svg className="absolute inset-0 w-full h-full">
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                   {/* Grid */}
-                  <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#334155" strokeWidth="1" />
-                  <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#334155" strokeWidth="1" />
+                  <line x1="50" y1="0" x2="50" y2="100" stroke="#334155" strokeWidth="1" />
+                  <line x1="0" y1="50" x2="100" y2="50" stroke="#334155" strokeWidth="1" />
                   
                   {/* Function curve */}
                   <path
@@ -1309,12 +1309,13 @@ const FeedForwardSection = () => {
                         const y = activations[activation](x);
                         const px = 50 + (x / 2.5) * 40;
                         const py = 50 - (y / 2.5) * 40;
-                        return `${i === 0 ? "M" : "L"} ${px}% ${py}%`;
+                        return `${i === 0 ? "M" : "L"} ${px} ${py}`;
                       })
                       .join(" ")}
                     fill="none"
                     stroke="#10b981"
-                    strokeWidth="3"
+                    strokeWidth="2"
+                    vectorEffect="non-scaling-stroke"
                   />
                 </svg>
                 
@@ -1623,25 +1624,47 @@ print(f"Output shape: {output.shape}")`,
           <div className="relative">
             <pre className="p-6 overflow-x-auto text-sm font-mono leading-relaxed">
               <code className="text-slate-300">
-                {codeExamples[activeTab].split("\n").map((line, i) => (
-                  <div key={i} className="table-row">
-                    <span className="table-cell text-slate-600 select-none pr-4 text-right w-12">
-                      {i + 1}
-                    </span>
-                    <span
-                      className="table-cell"
-                      dangerouslySetInnerHTML={{
-                        __html: line
-                          .replace(/(#.*$)/gm, '<span class="text-slate-500">$1</span>')
-                          .replace(/\b(import|from|class|def|return|if|else|for|in|assert|super)\b/g, '<span class="text-violet-400">$1</span>')
-                          .replace(/\b(self|None|True|False)\b/g, '<span class="text-amber-400">$1</span>')
-                          .replace(/\b(nn|torch|tf|np|math)\b/g, '<span class="text-cyan-400">$1</span>')
-                          .replace(/(".*?"|'.*?')/g, '<span class="text-emerald-400">$1</span>')
-                          .replace(/\b(\d+)\b/g, '<span class="text-rose-400">$1</span>')
-                      }}
-                    />
-                  </div>
-                ))}
+                {codeExamples[activeTab].split("\n").map((line, i) => {
+                  // Simple syntax highlighting without dangerouslySetInnerHTML
+                  const parts: React.ReactNode[] = [];
+                  let remaining = line;
+                  let key = 0;
+                  
+                  // Highlight comments
+                  const commentMatch = remaining.match(/(#.*$)/);
+                  if (commentMatch) {
+                    const before = remaining.slice(0, commentMatch.index);
+                    parts.push(<span key={key++}>{before}</span>);
+                    parts.push(<span key={key++} className="text-slate-500">{commentMatch[0]}</span>);
+                  } else {
+                    // Highlight keywords, strings, and numbers
+                    const tokens = remaining.split(/(\b(?:import|from|class|def|return|if|else|for|in|assert|super|self|None|True|False|nn|torch|tf|np|math)\b|"[^"]*"|'[^']*'|\b\d+\b)/g);
+                    tokens.forEach((token, idx) => {
+                      if (/\b(import|from|class|def|return|if|else|for|in|assert|super)\b/.test(token)) {
+                        parts.push(<span key={key++} className="text-violet-400">{token}</span>);
+                      } else if (/\b(self|None|True|False)\b/.test(token)) {
+                        parts.push(<span key={key++} className="text-amber-400">{token}</span>);
+                      } else if (/\b(nn|torch|tf|np|math)\b/.test(token)) {
+                        parts.push(<span key={key++} className="text-cyan-400">{token}</span>);
+                      } else if (/^"[^"]*"$|^'[^']*'$/.test(token)) {
+                        parts.push(<span key={key++} className="text-emerald-400">{token}</span>);
+                      } else if (/^\d+$/.test(token)) {
+                        parts.push(<span key={key++} className="text-rose-400">{token}</span>);
+                      } else {
+                        parts.push(<span key={key++}>{token}</span>);
+                      }
+                    });
+                  }
+                  
+                  return (
+                    <div key={i} className="table-row">
+                      <span className="table-cell text-slate-600 select-none pr-4 text-right w-12">
+                        {i + 1}
+                      </span>
+                      <span className="table-cell">{parts}</span>
+                    </div>
+                  );
+                })}
               </code>
             </pre>
           </div>
