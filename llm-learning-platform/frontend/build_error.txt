@@ -1,0 +1,28 @@
+
+> llm-learning-platform-frontend@1.0.0 build
+> next build
+
+ ΓÜá Invalid next.config.js options detected: 
+ ΓÜá     Unrecognized key(s) in object: 'appDir' at "experimental"
+ ΓÜá See more info here: https://nextjs.org/docs/messages/invalid-next-config
+   Γû▓ Next.js 15.5.12
+   - Experiments (use with caution):
+     Γ£ô appDir
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully in 3.6s
+   Linting and checking validity of types ...
+Failed to compile.
+
+./app/learn/training/page.tsx:124:47
+Type error: Argument of type '{ model_id: string; batch_size: number; learning_rate: number; max_steps: number; warmup_steps: number; grad_clip: number; }' is not assignable to parameter of type 'TrainingConfig & { model_id: string; }'.
+  Type '{ model_id: string; batch_size: number; learning_rate: number; max_steps: number; warmup_steps: number; grad_clip: number; }' is missing the following properties from type 'TrainingConfig': min_learning_rate, weight_decay, seq_length, eval_interval, checkpoint_interval
+
+  122 |     }
+  123 |     try {
+> 124 |       const session = await api.startTraining({
+      |                                               ^
+  125 |         ...trainingConfig,
+  126 |         model_id: currentModel.model_id,
+  127 |       });
+Next.js build worker exited with code: 1 and signal: null
