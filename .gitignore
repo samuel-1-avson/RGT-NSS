@@ -94,3 +94,19 @@ docs/_build/
 *.bak
 *.tmp
 .cache/
+
+# Frontend / Node.js
+node_modules/
+.next/
+.nuxt/
+dist/
+build/
+
+# Frontend Environment
+frontend/.env.local
+frontend/.env.*.local
+
+# Frontend Build
+frontend/dist/
+frontend/build/
+frontend/.vercel
