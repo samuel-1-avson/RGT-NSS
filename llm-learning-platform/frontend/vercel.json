@@ -1,16 +1,10 @@
 {
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
   "rewrites": [
-    { "source": "/learn/transformer", "destination": "/learn/transformer/" }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
-    }
+    { "source": "/learn", "destination": "/learn/index.html" },
+    { "source": "/learn/(.*)", "destination": "/learn/$1/index.html" }
   ]
 }
