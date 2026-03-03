@@ -12,9 +12,11 @@ Key differences from full implementation:
 - Minimal dependencies (only random, math, os)
 """
 
+from __future__ import annotations
+
 import math
 import random
-from typing import List, Tuple, Dict, Optional, Callable
+from typing import List, Tuple, Dict, Optional, Callable, Union
 from dataclasses import dataclass
 
 
