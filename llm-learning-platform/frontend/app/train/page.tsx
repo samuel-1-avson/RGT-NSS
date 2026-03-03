@@ -194,9 +194,14 @@ export default function TrainPage() {
   const [trainingConfig, setTrainingConfig] = useState({
     batch_size: 32,
     learning_rate: 0.001,
+    min_learning_rate: 1e-6,
     max_steps: 1000,
     warmup_steps: 100,
     grad_clip: 1.0,
+    weight_decay: 0.01,
+    seq_length: 128,
+    eval_interval: 100,
+    checkpoint_interval: 500,
   });
 
   // Create model

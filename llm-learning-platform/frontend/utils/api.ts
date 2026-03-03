@@ -65,7 +65,7 @@ class ApiClient {
   }
 
   // Training
-  async startTraining(config: TrainingConfig & { model_id: string }): Promise<{ session_id: string; status: string }> {
+  async startTraining(config: TrainingConfig): Promise<{ session_id: string; status: string }> {
     return this.fetch('/api/training/start', {
       method: 'POST',
       body: JSON.stringify(config),

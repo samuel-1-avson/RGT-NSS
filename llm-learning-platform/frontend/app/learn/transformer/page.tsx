@@ -188,7 +188,7 @@ export default function TransformerPage() {
           <div className="relative w-full max-w-2xl py-12 flex flex-col items-center">
 
             {/* SVG Background for Connections */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ preserveAspectRatio: "none" }}>
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" preserveAspectRatio="none">
               {/* Main Stem Line */}
               <line
                 x1="50%" y1="5%"
