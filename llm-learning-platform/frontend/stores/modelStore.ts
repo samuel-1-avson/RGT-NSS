@@ -3,30 +3,27 @@ import { persist } from 'zustand/middleware';
 
 export interface GPTConfig {
   vocab_size: number;
-  max_seq_len: number;
   d_model: number;
   num_layers: number;
   num_heads: number;
   d_ff: number;
+  max_seq_len: number;
   dropout: number;
-  attention_dropout: number;
-  activation: 'gelu' | 'relu' | 'swiglu';
-  norm_type: 'layernorm' | 'rmsnorm';
-  tie_weights: boolean;
+  tie_weights?: boolean;
+  activation?: 'gelu' | 'relu' | 'swiglu';
+  norm_type?: 'rmsnorm' | 'layernorm';
 }
 
 export interface TrainingMetrics {
   step: number;
   loss: number;
   perplexity: number;
-  learning_rate: number;
-  grad_norm: number;
-  tokens_per_sec?: number;
-  time_elapsed?: number;
-  time_remaining?: number;
+  learningRate: number;
+  gradNorm: number;
+  tokensPerSec: number;
 }
 
-export interface TrainingHistory {
+export interface HistoryData {
   steps: number[];
   losses: number[];
   perplexities: number[];
@@ -35,16 +32,17 @@ export interface TrainingHistory {
 }
 
 export interface ModelCheckpoint {
-  config: GPTConfig;
+  id: string;
+  name: string;
+  createdAt: string;
   step: number;
-  timestamp: number;
-  name?: string;
+  loss: number;
 }
 
 export interface ModelState {
   // Model configuration
   config: GPTConfig;
-  setConfig: (config: Partial<GPTConfig>) => void;
+  activeModelId: string | null;
   
   // Training state
   isTraining: boolean;
@@ -54,255 +52,270 @@ export interface ModelState {
   learningRate: number;
   gradNorm: number;
   tokensPerSec: number;
-  
-  // History for charts
-  history: TrainingHistory;
+  history: HistoryData;
+  checkpoint: ModelCheckpoint | null;
   
   // Actions
+  setConfig: (config: Partial<GPTConfig>) => void;
+  setActiveModelId: (id: string | null) => void;
   startTraining: () => void;
   stopTraining: () => void;
-  updateMetrics: (metrics: Partial<TrainingMetrics>) => void;
+  updateMetrics: (metrics: TrainingMetrics) => void;
   resetHistory: () => void;
-  
-  // Model checkpoint
-  checkpoint: ModelCheckpoint | null;
-  saveCheckpoint: (name?: string) => void;
+  saveCheckpoint: (name: string) => void;
   loadCheckpoint: (checkpoint: ModelCheckpoint) => void;
-  
-  // User progress
-  completedModules: string[];
-  completeModule: (moduleId: string) => void;
-  
-  // Active model/session
-  activeModelId: string | null;
-  setActiveModelId: (id: string | null) => void;
+  resetState: () => void;
 }
 
 export const defaultConfig: GPTConfig = {
-  vocab_size: 256,
-  max_seq_len: 256,
-  d_model: 128,
-  num_layers: 4,
-  num_heads: 4,
-  d_ff: 512,
+  vocab_size: 50257,
+  d_model: 768,
+  num_layers: 12,
+  num_heads: 12,
+  d_ff: 3072,
+  max_seq_len: 1024,
   dropout: 0.1,
-  attention_dropout: 0.1,
-  activation: 'gelu',
-  norm_type: 'rmsnorm',
   tie_weights: true,
+  activation: 'gelu',
+  norm_type: 'layernorm',
 };
 
-export const modelPresets = {
+export interface ModelPreset {
+  name: string;
+  config: GPTConfig;
+  estimatedParams: number;
+}
+
+// Model presets for different sizes
+export const modelPresets: Record<string, ModelPreset> = {
   micro: {
-    name: 'Micro (1M params)',
+    name: "Micro GPT",
     config: {
-      ...defaultConfig,
+      vocab_size: 256,
+      d_model: 64,
+      num_layers: 2,
+      num_heads: 2,
+      d_ff: 256,
+      max_seq_len: 128,
+      dropout: 0.1,
+      tie_weights: true,
+      activation: 'gelu',
+      norm_type: 'layernorm',
+    },
+    estimatedParams: 0.5,
+  },
+  tiny: {
+    name: "Tiny GPT",
+    config: {
       vocab_size: 256,
       d_model: 128,
       num_layers: 4,
       num_heads: 4,
       d_ff: 512,
+      max_seq_len: 256,
+      dropout: 0.1,
+      tie_weights: true,
+      activation: 'gelu',
+      norm_type: 'layernorm',
     },
-    estimatedParams: 1_052_672,
+    estimatedParams: 2.1,
   },
   small: {
-    name: 'Small (10M params)',
+    name: "Small GPT",
     config: {
-      ...defaultConfig,
-      vocab_size: 1000,
+      vocab_size: 50257,
       d_model: 256,
       num_layers: 6,
       num_heads: 8,
       d_ff: 1024,
+      max_seq_len: 512,
+      dropout: 0.1,
+      tie_weights: true,
+      activation: 'gelu',
+      norm_type: 'layernorm',
     },
-    estimatedParams: 10_500_000,
+    estimatedParams: 10,
   },
   medium: {
-    name: 'Medium (100M params)',
+    name: "Medium GPT",
     config: {
-      ...defaultConfig,
-      vocab_size: 5000,
+      vocab_size: 50257,
       d_model: 512,
-      num_layers: 12,
+      num_layers: 8,
       num_heads: 8,
       d_ff: 2048,
+      max_seq_len: 1024,
+      dropout: 0.1,
+      tie_weights: true,
+      activation: 'gelu',
+      norm_type: 'layernorm',
     },
-    estimatedParams: 100_000_000,
+    estimatedParams: 44,
   },
-  gpt2: {
-    name: 'GPT-2 Small (124M params)',
+  gpt2_small: {
+    name: "GPT-2 Small",
     config: {
-      ...defaultConfig,
       vocab_size: 50257,
       d_model: 768,
       num_layers: 12,
       num_heads: 12,
       d_ff: 3072,
+      max_seq_len: 1024,
+      dropout: 0.1,
+      tie_weights: true,
+      activation: 'gelu',
+      norm_type: 'layernorm',
     },
-    estimatedParams: 124_000_000,
+    estimatedParams: 124,
   },
+};
+
+// Calculate model parameters
+export function calculateModelParams(config: GPTConfig): number {
+  const embeddingParams = config.vocab_size * config.d_model;
+  const positionalParams = config.max_seq_len * config.d_model;
+  const layerParams = config.num_layers * (
+    // Self-attention: Q, K, V projections + output projection
+    (4 * config.d_model * config.d_model) +
+    // FFN: two linear layers
+    (config.d_model * config.d_ff * 2)
+  );
+  const lnParams = config.num_layers * 2 * config.d_model; // Layer norms
+  const lmHeadParams = config.tie_weights ? 0 : config.vocab_size * config.d_model;
+  
+  return embeddingParams + positionalParams + layerParams + lnParams + lmHeadParams;
+}
+
+// Format parameters count
+export function formatParams(params: number): string {
+  if (params >= 1_000_000_000) {
+    return `${(params / 1_000_000_000).toFixed(1)}B`;
+  }
+  if (params >= 1_000_000) {
+    return `${(params / 1_000_000).toFixed(1)}M`;
+  }
+  if (params >= 1_000) {
+    return `${(params / 1_000).toFixed(1)}K`;
+  }
+  return `${params}`;
+}
+
+// Estimate memory usage
+export function estimateMemory(
+  config: GPTConfig, 
+  precision: 'fp32' | 'fp16' | 'bf16' = 'fp32'
+): number {
+  const bytesPerParam = precision === 'fp32' ? 4 : 2;
+  const params = calculateModelParams(config);
+  const modelMemory = params * bytesPerParam;
+  
+  // Activation memory (rough estimate: ~2x model size for batch=1)
+  const activationMemory = modelMemory * 2;
+  
+  // Optimizer memory (Adam: 2x model size for momentum buffers)
+  const optimizerMemory = modelMemory * 2;
+  
+  // Gradients (same as model size)
+  const gradientMemory = modelMemory;
+  
+  return modelMemory + activationMemory + optimizerMemory + gradientMemory;
+}
+
+const initialState = {
+  config: defaultConfig,
+  activeModelId: null,
+  isTraining: false,
+  currentStep: 0,
+  loss: 0,
+  perplexity: 0,
+  learningRate: 0.001,
+  gradNorm: 0,
+  tokensPerSec: 0,
+  history: {
+    steps: [],
+    losses: [],
+    perplexities: [],
+    learningRates: [],
+    gradNorms: [],
+  },
+  checkpoint: null,
 };
 
 export const useModelStore = create<ModelState>()(
   persist(
     (set, get) => ({
-      // Initial state
-      config: defaultConfig,
-      isTraining: false,
-      currentStep: 0,
-      loss: 0,
-      perplexity: 0,
-      learningRate: 0.001,
-      gradNorm: 0,
-      tokensPerSec: 0,
-      history: {
-        steps: [],
-        losses: [],
-        perplexities: [],
-        learningRates: [],
-        gradNorms: [],
-      },
-      checkpoint: null,
-      completedModules: [],
-      activeModelId: null,
-      
-      // Actions
-      setConfig: (config) => set((state) => ({
-        config: { ...state.config, ...config }
-      })),
-      
-      startTraining: () => set({ isTraining: true }),
-      stopTraining: () => set({ isTraining: false }),
-      
-      updateMetrics: (metrics) => set((state) => {
-        const step = metrics.step ?? state.currentStep + 1;
-        return {
-          currentStep: step,
-          loss: metrics.loss ?? state.loss,
-          perplexity: metrics.perplexity ?? state.perplexity,
-          learningRate: metrics.learning_rate ?? state.learningRate,
-          gradNorm: metrics.grad_norm ?? state.gradNorm,
-          tokensPerSec: metrics.tokens_per_sec ?? state.tokensPerSec,
+      ...initialState,
+
+      setConfig: (config) =>
+        set((state) => ({
+          config: { ...state.config, ...config },
+        })),
+
+      setActiveModelId: (id) =>
+        set({ activeModelId: id }),
+
+      startTraining: () =>
+        set({ isTraining: true }),
+
+      stopTraining: () =>
+        set({ isTraining: false }),
+
+      updateMetrics: (metrics) =>
+        set((state) => ({
+          currentStep: metrics.step,
+          loss: metrics.loss,
+          perplexity: metrics.perplexity,
+          learningRate: metrics.learningRate,
+          gradNorm: metrics.gradNorm,
+          tokensPerSec: metrics.tokensPerSec,
           history: {
-            steps: [...state.history.steps, step],
-            losses: [...state.history.losses, metrics.loss ?? state.loss],
-            perplexities: [...state.history.perplexities, metrics.perplexity ?? state.perplexity],
-            learningRates: [...state.history.learningRates, metrics.learning_rate ?? state.learningRate],
-            gradNorms: [...state.history.gradNorms, metrics.grad_norm ?? state.gradNorm],
-          }
-        };
-      }),
-      
-      resetHistory: () => set({
-        currentStep: 0,
-        loss: 0,
-        perplexity: 0,
-        gradNorm: 0,
-        tokensPerSec: 0,
-        history: {
-          steps: [],
-          losses: [],
-          perplexities: [],
-          learningRates: [],
-          gradNorms: [],
-        }
-      }),
-      
-      saveCheckpoint: (name) => {
-        const state = get();
+            steps: [...state.history.steps, metrics.step].slice(-500), // Keep last 500 points
+            losses: [...state.history.losses, metrics.loss].slice(-500),
+            perplexities: [...state.history.perplexities, metrics.perplexity].slice(-500),
+            learningRates: [...state.history.learningRates, metrics.learningRate].slice(-500),
+            gradNorms: [...state.history.gradNorms, metrics.gradNorm].slice(-500),
+          },
+        })),
+
+      resetHistory: () =>
         set({
-          checkpoint: {
-            config: state.config,
-            step: state.currentStep,
-            timestamp: Date.now(),
-            name: name || `Checkpoint-${state.currentStep}`,
-          }
-        });
+          currentStep: 0,
+          loss: 0,
+          perplexity: 0,
+          history: {
+            steps: [],
+            losses: [],
+            perplexities: [],
+            learningRates: [],
+            gradNorms: [],
+          },
+        }),
+
+      saveCheckpoint: (name) => {
+        const checkpoint: ModelCheckpoint = {
+          id: `checkpoint-${Date.now()}`,
+          name,
+          createdAt: new Date().toISOString(),
+          step: get().currentStep,
+          loss: get().loss,
+        };
+        set({ checkpoint });
       },
-      
-      loadCheckpoint: (checkpoint) => set({
-        config: checkpoint.config,
-        currentStep: checkpoint.step,
-      }),
-      
-      completeModule: (moduleId) => set((state) => ({
-        completedModules: state.completedModules.includes(moduleId) 
-          ? state.completedModules 
-          : [...state.completedModules, moduleId]
-      })),
-      
-      setActiveModelId: (id) => set({ activeModelId: id }),
+
+      loadCheckpoint: (checkpoint) => {
+        set({ checkpoint });
+      },
+
+      resetState: () => set(initialState),
     }),
     {
       name: 'llm-learning-storage',
       partialize: (state) => ({
         config: state.config,
         checkpoint: state.checkpoint,
-        completedModules: state.completedModules,
       }),
     }
   )
 );
 
-// Helper function to calculate model parameters
-export function calculateModelParams(config: GPTConfig): number {
-  const { vocab_size, d_model, num_layers, num_heads, d_ff } = config;
-  
-  // Embedding parameters
-  const tokenEmbeddings = vocab_size * d_model;
-  const positionalEmbeddings = config.max_seq_len * d_model;
-  
-  // Attention parameters per layer
-  const qkvProjection = 3 * d_model * d_model;
-  const outputProjection = d_model * d_model;
-  const attentionPerLayer = qkvProjection + outputProjection;
-  
-  // MLP parameters per layer
-  const mlp = d_model * d_ff + d_ff * d_model;
-  
-  // Layer normalization (2 per layer + 1 final)
-  const layerNorm = (2 * num_layers + 1) * d_model;
-  
-  // Total
-  const total = tokenEmbeddings + positionalEmbeddings + 
-                num_layers * (attentionPerLayer + mlp) + layerNorm;
-  
-  // Add output head if not tying weights
-  if (!config.tie_weights) {
-    return total + d_model * vocab_size;
-  }
-  
-  return total;
-}
-
-// Helper to format parameter count
-export function formatParams(count: number): string {
-  if (count >= 1_000_000_000) {
-    return `${(count / 1_000_000_000).toFixed(1)}B`;
-  } else if (count >= 1_000_000) {
-    return `${(count / 1_000_000).toFixed(1)}M`;
-  } else if (count >= 1_000) {
-    return `${(count / 1_000).toFixed(1)}K`;
-  }
-  return count.toString();
-}
-
-// Helper to estimate memory
-export function estimateMemory(config: GPTConfig, precision: 'fp32' | 'fp16' = 'fp32'): number {
-  const params = calculateModelParams(config);
-  const bytesPerParam = precision === 'fp32' ? 4 : 2;
-  
-  // Model weights
-  const modelMemory = params * bytesPerParam;
-  
-  // Gradients (same size as weights)
-  const gradientMemory = params * bytesPerParam;
-  
-  // Optimizer states (Adam has 2 states per param)
-  const optimizerMemory = params * bytesPerParam * 2;
-  
-  // Activations (rough estimate)
-  const activationMemory = config.d_model * config.max_seq_len * bytesPerParam * 4;
-  
-  return modelMemory + gradientMemory + optimizerMemory + activationMemory;
-}
+export default useModelStore;

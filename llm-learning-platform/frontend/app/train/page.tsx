@@ -1,17 +1,15 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { 
   ArrowLeft, 
   Play, 
-  Pause, 
   Square, 
   RotateCcw, 
   Save,
   Activity,
   TrendingDown,
-  Clock,
   Zap,
   Settings,
   ChevronDown,
@@ -19,11 +17,13 @@ import {
   AlertCircle,
   CheckCircle,
   BarChart3,
-  Layers
+  Layers,
+  Loader2
 } from "lucide-react";
 import Link from "next/link";
 import { useModelStore, modelPresets, formatParams, calculateModelParams, estimateMemory } from "@/stores/modelStore";
-import { useTrainingSocket, useBackendHealth } from "@/hooks/useTrainingSocket";
+import { useTraining, useBackendHealth } from "@/hooks/useTrainingSocket";
+import { trainingApi, systemApi } from "@/lib/api";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 // Loss Chart Component
@@ -170,6 +170,8 @@ function HyperparameterControl({
 export default function TrainPage() {
   const [showConfig, setShowConfig] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<keyof typeof modelPresets>('micro');
+  const [trainingError, setTrainingError] = useState<string | null>(null);
+  const [backendStatus, setBackendStatus] = useState<any>(null);
   
   // Get state from Zustand store
   const { 
@@ -190,12 +192,25 @@ export default function TrainPage() {
 
   const { 
     isConnected, 
+    isLoading,
     error: socketError, 
-    startTraining, 
-    stopTraining 
-  } = useTrainingSocket();
+    sessionId,
+    startTraining,
+    stopTraining,
+  } = useTraining();
 
-  const { isHealthy, isChecking } = useBackendHealth();
+  const { isHealthy, gpuStatus } = useBackendHealth();
+
+  // Check backend status on mount
+  useEffect(() => {
+    const checkStatus = async () => {
+      const { data, error } = await systemApi.health();
+      if (data) {
+        setBackendStatus(data);
+      }
+    };
+    checkStatus();
+  }, []);
 
   // Prepare chart data
   const chartData = history.steps.map((step, i) => ({
@@ -212,27 +227,71 @@ export default function TrainPage() {
     setConfig(modelPresets[preset].config);
   };
 
-  // Handle training start
-  const handleStartTraining = () => {
-    const modelId = `model-${Date.now()}`;
-    setActiveModelId(modelId);
+  // Handle training start with real API
+  const handleStartTraining = async () => {
+    setTrainingError(null);
     
-    startTraining({
-      model_id: modelId,
-      dataset: 'shakespeare',
-      batch_size: 16,
-      learning_rate: learningRate || 0.001,
-      warmup_steps: 100,
-      max_steps: 1000,
-      grad_clip: 1.0,
-      optimizer: 'adamw',
-      config,
-    });
+    try {
+      // First create a model if we don't have an active one
+      let modelId = useModelStore.getState().activeModelId;
+      
+      if (!modelId) {
+        // Create a new model
+        const { data: modelData, error: modelError } = await trainingApi.start({
+          model_id: '', // Will be created by backend
+          dataset: 'shakespeare',
+          batch_size: 16,
+          learning_rate: learningRate || 0.001,
+          min_learning_rate: 0.0001,
+          warmup_steps: 100,
+          max_steps: 1000,
+          grad_clip: 1.0,
+          weight_decay: 0.1,
+          optimizer: 'adamw',
+        });
+
+        if (modelError) {
+          throw new Error(modelError);
+        }
+
+        if (modelData?.session_id) {
+          // Training started successfully
+          console.log('Training started:', modelData);
+        }
+      } else {
+        // Use existing model
+        await startTraining({
+          model_id: modelId,
+          dataset: 'shakespeare',
+          batch_size: 16,
+          learning_rate: learningRate || 0.001,
+          warmup_steps: 100,
+          max_steps: 1000,
+          grad_clip: 1.0,
+          optimizer: 'adamw',
+        });
+      }
+    } catch (err: any) {
+      console.error('Failed to start training:', err);
+      setTrainingError(err.message || 'Failed to start training');
+    }
+  };
+
+  // Handle training stop
+  const handleStopTraining = async () => {
+    try {
+      await stopTraining();
+    } catch (err: any) {
+      console.error('Failed to stop training:', err);
+    }
   };
 
   // Calculate model stats
   const paramCount = calculateModelParams(config);
   const memoryEstimate = estimateMemory(config, 'fp32');
+
+  // Combine errors
+  const error = trainingError || socketError;
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -253,13 +312,20 @@ export default function TrainPage() {
             {/* Backend Status */}
             <div className="flex items-center gap-4">
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
-                isConnected 
+                isHealthy 
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
                   : 'bg-red-500/10 text-red-400 border border-red-500/20'
               }`}>
-                {isConnected ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
+                {isHealthy ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                <span>{isHealthy ? 'Backend Connected' : 'Backend Offline'}</span>
               </div>
+              
+              {gpuStatus?.available && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                  <Zap className="w-4 h-4" />
+                  <span>GPU: {gpuStatus.device_name?.split(' ').slice(0, 2).join(' ')}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -381,15 +447,19 @@ export default function TrainPage() {
                 {!isTraining ? (
                   <button
                     onClick={handleStartTraining}
-                    disabled={!isConnected}
+                    disabled={!isHealthy || isLoading}
                     className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    <Play className="w-5 h-5" />
-                    Start Training
+                    {isLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Play className="w-5 h-5" />
+                    )}
+                    {isLoading ? 'Starting...' : 'Start Training'}
                   </button>
                 ) : (
                   <button
-                    onClick={stopTraining}
+                    onClick={handleStopTraining}
                     className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-500 transition-colors"
                   >
                     <Square className="w-5 h-5" />
@@ -414,9 +484,16 @@ export default function TrainPage() {
                 </button>
               </div>
 
-              {socketError && (
+              {error && (
                 <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-                  {socketError}
+                  {error}
+                </div>
+              )}
+
+              {sessionId && (
+                <div className="mt-4 p-3 bg-slate-800/50 rounded-lg">
+                  <div className="text-xs text-slate-400">Session ID</div>
+                  <div className="text-sm font-mono text-slate-300">{sessionId}</div>
                 </div>
               )}
             </div>
