@@ -9,10 +9,21 @@ services:
       - "8000:8000"
     environment:
       - ENVIRONMENT=production
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
     volumes:
       - ./backend/checkpoints:/app/checkpoints
       - ./backend/data:/app/data
     restart: unless-stopped
+    # GPU configuration for Docker
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   frontend:
     build:

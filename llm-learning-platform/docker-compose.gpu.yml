@@ -1,0 +1,21 @@
+version: '3.8'
+
+# GPU-optimized Docker Compose configuration
+# Use this file to run backend with GPU support:
+# docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+
+services:
+  backend:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+      - ENVIRONMENT=production

@@ -1,8 +1,8 @@
 # Core dependencies
+# PyTorch with CUDA is installed separately in Dockerfile
+# torch, torchvision, torchaudio installed via: 
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 numpy>=1.26.0
-torch>=2.2.0
-torchvision>=0.17.0
-torchaudio>=2.2.0
 
 # FastAPI and web framework
 fastapi>=0.109.0
