@@ -691,3 +691,61 @@ async def broadcast_metrics(session_id: str, metrics: dict):
         'type': 'metrics',
         'data': metrics
     })
+
+
+# ============== Datasets Endpoints ==============
+
+BUILTIN_DATASETS = {
+    "shakespeare": {
+        "name": "Shakespeare",
+        "description": "Complete works of William Shakespeare (~5.4MB)",
+        "text": "To be, or not to be, that is the question...",
+        "size": 5582212,
+        "tokens": 1366766
+    },
+    "tiny_shakespeare": {
+        "name": "Tiny Shakespeare", 
+        "description": "First 1MB of Shakespeare (good for quick experiments)",
+        "text": "To be, or not to be, that is the question...",
+        "size": 1048576,
+        "tokens": 256000
+    },
+    "war_and_peace": {
+        "name": "War and Peace",
+        "description": "Leo Tolstoy's War and Peace (~3.2MB)",
+        "text": "Well, Prince, so Genoa and Lucca are now just family estates...",
+        "size": 3355443,
+        "tokens": 838860
+    }
+}
+
+@router.get("/datasets")
+async def list_datasets():
+    """List all available datasets."""
+    datasets = []
+    for key, ds in BUILTIN_DATASETS.items():
+        datasets.append({
+            "id": key,
+            "name": ds["name"],
+            "description": ds["description"],
+            "size": ds["size"],
+            "tokens": ds["tokens"]
+        })
+    return {"datasets": datasets}
+
+
+@router.get("/datasets/{dataset_id}")
+async def get_dataset(dataset_id: str):
+    """Get a specific dataset's information."""
+    if dataset_id not in BUILTIN_DATASETS:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    ds = BUILTIN_DATASETS[dataset_id]
+    return {
+        "id": dataset_id,
+        "name": ds["name"],
+        "description": ds["description"],
+        "size": ds["size"],
+        "tokens": ds["tokens"],
+        "preview": ds["text"][:200] + "..."
+    }
