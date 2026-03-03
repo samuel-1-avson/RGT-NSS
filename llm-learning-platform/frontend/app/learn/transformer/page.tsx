@@ -16,7 +16,7 @@ import {
   Layers,
   Eye,
   ArrowRight,
-  Matrix,
+  Grid3X3,
   Settings,
   Sparkles,
   Terminal,
@@ -59,7 +59,7 @@ interface Section {
 const SECTIONS: Section[] = [
   { id: "intro", title: "Introduction", icon: <BookOpen className="w-5 h-5" /> },
   { id: "architecture", title: "Architecture", icon: <Layers className="w-5 h-5" /> },
-  { id: "embeddings", title: "Embeddings", icon: <Matrix className="w-5 h-5" /> },
+  { id: "embeddings", title: "Embeddings", icon: <Grid3X3 className="w-5 h-5" /> },
   { id: "attention", title: "Self-Attention", icon: <Eye className="w-5 h-5" /> },
   { id: "multihead", title: "Multi-Head Attention", icon: <Brain className="w-5 h-5" /> },
   { id: "ffn", title: "Feed-Forward", icon: <Zap className="w-5 h-5" /> },
@@ -484,7 +484,7 @@ const EmbeddingsSection = () => {
           className="text-center mb-16"
         >
           <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 text-indigo-300 text-sm font-medium mb-4">
-            <Matrix className="w-4 h-4" />
+            <Grid3X3 className="w-4 h-4" />
             Input Representation
           </span>
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
