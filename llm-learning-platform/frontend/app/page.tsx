@@ -71,11 +71,11 @@ export default function HomePage() {
             className="flex flex-wrap justify-center gap-4"
           >
             <Link
-              href="/learn/transformer/"
+              href="/learn/"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold hover:shadow-lg hover:shadow-violet-500/25 transition-all duration-300 hover:scale-105"
             >
               <BookOpen className="w-5 h-5" />
-              Learn Transformers
+              Start Learning
             </Link>
             <Link
               href="/models/"
@@ -196,7 +196,7 @@ export default function HomePage() {
               the architecture powering modern AI.
             </p>
             <Link
-              href="/learn/transformer/"
+              href="/learn/"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold hover:shadow-lg hover:shadow-violet-500/25 transition-all duration-300"
             >
               <BookOpen className="w-5 h-5" />
