@@ -1,0 +1,39 @@
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python backend
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# Logs and local env
+*.log
+.env
+.env.*
+!.env.example
+
+# Build/cache outputs
+.next/
+out/
+dist/
+build/
+coverage/
+
+# Node
+node_modules/
+
+# Docker/runtime
+*.pid
+
+# Vercel
+.vercel/

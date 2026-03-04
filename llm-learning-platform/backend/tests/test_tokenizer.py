@@ -1,186 +1,100 @@
-"""
-Tests for tokenizer implementations.
-"""
+"""Tests for the Tokenizer Engine."""
 
 import pytest
-
-from app.core.tokenizer import (
-    CharacterTokenizer,
-    WordTokenizer,
-    BPETokenizer,
-    TokenizerFactory,
-)
-from app.core.exceptions import TokenizationError
+from app.core.tokenizer import TokenizerEngine, TokenizationStrategy
 
 
-class TestCharacterTokenizer:
-    """Test character-level tokenizer."""
-    
-    def test_encode(self):
-        """Test basic encoding."""
-        tokenizer = CharacterTokenizer(vocab_size=256)
-        text = "Hello"
-        
-        tokens = tokenizer.encode(text)
-        
-        assert len(tokens) == len(text)
-        assert all(isinstance(t, int) for t in tokens)
-        assert all(0 <= t < 256 for t in tokens)
-    
-    def test_decode(self):
-        """Test basic decoding."""
-        tokenizer = CharacterTokenizer(vocab_size=256)
-        text = "Hello"
-        
-        tokens = tokenizer.encode(text)
-        decoded = tokenizer.decode(tokens)
-        
-        assert decoded == text
-    
-    def test_encode_decode_roundtrip(self):
-        """Test encode-decode roundtrip."""
-        tokenizer = CharacterTokenizer(vocab_size=256)
-        text = "Hello, World! 123"
-        
-        tokens = tokenizer.encode(text)
-        decoded = tokenizer.decode(tokens)
-        
-        assert decoded == text
-    
-    def test_empty_string(self):
-        """Test encoding empty string."""
-        tokenizer = CharacterTokenizer()
-        tokens = tokenizer.encode("")
-        assert tokens == []
-    
-    def test_vocab_size(self):
-        """Test vocabulary size."""
-        tokenizer = CharacterTokenizer(vocab_size=128)
-        assert tokenizer.get_vocab_size() == 128
+class TestTokenizerBPE:
+    def test_train_bpe(self, sample_corpus):
+        engine = TokenizerEngine(TokenizationStrategy.BPE)
+        result = engine.train(sample_corpus, vocab_size=100)
+        assert result.final_size > 0
+        assert result.final_size <= 100
+        assert len(result.vocab) > 0
+
+    def test_encode_bpe(self, sample_corpus):
+        engine = TokenizerEngine(TokenizationStrategy.BPE)
+        engine.train(sample_corpus, vocab_size=100)
+        enc = engine.encode("The quick brown fox")
+        assert len(enc.ids) > 0
+        assert len(enc.tokens) > 0
+        assert enc.tokens[0] == "<|BOS|>"
+        assert enc.tokens[-1] == "<|EOS|>"
+
+    def test_decode_bpe(self, sample_corpus):
+        engine = TokenizerEngine(TokenizationStrategy.BPE)
+        engine.train(sample_corpus, vocab_size=100)
+        enc = engine.encode("fox", add_special_tokens=False)
+        decoded = engine.decode(enc.ids)
+        assert "fox" in decoded
+
+    def test_bpe_streaming(self, sample_corpus):
+        engine = TokenizerEngine(TokenizationStrategy.BPE)
+        steps = list(engine.train_bpe_streaming(sample_corpus, vocab_size=50))
+        assert len(steps) > 0
+        for step in steps:
+            assert step.vocab_size > 0
+            assert step.new_token is not None
 
 
-class TestWordTokenizer:
-    """Test word-level tokenizer."""
-    
-    def test_train_and_encode(self):
-        """Test training and encoding."""
-        tokenizer = WordTokenizer(vocab_size=100)
-        texts = [
-            "Hello world",
-            "Hello there",
-            "World peace"
-        ]
-        
-        tokenizer.train(texts)
-        tokens = tokenizer.encode("Hello world")
-        
-        assert len(tokens) > 0
-        assert all(isinstance(t, int) for t in tokens)
-    
-    def test_untrained_raises_error(self):
-        """Test that untrained tokenizer raises error."""
-        tokenizer = WordTokenizer()
-        
-        with pytest.raises(TokenizationError):
-            tokenizer.encode("Hello")
-    
-    def test_vocab_size_limit(self):
-        """Test vocabulary size is respected."""
-        tokenizer = WordTokenizer(vocab_size=10)
-        texts = ["The quick brown fox jumps over the lazy dog"]
-        
-        tokenizer.train(texts)
-        
-        assert tokenizer.get_vocab_size() <= 10
+class TestTokenizerWordPiece:
+    def test_train_wordpiece(self, sample_corpus):
+        engine = TokenizerEngine(TokenizationStrategy.WORDPIECE)
+        result = engine.train(sample_corpus, vocab_size=100)
+        assert result.final_size > 0
+
+    def test_encode_wordpiece(self, sample_corpus):
+        engine = TokenizerEngine(TokenizationStrategy.WORDPIECE)
+        engine.train(sample_corpus, vocab_size=100)
+        enc = engine.encode("The fox")
+        assert len(enc.ids) > 0
 
 
-class TestBPETokenizer:
-    """Test BPE tokenizer."""
-    
-    def test_train_and_encode(self):
-        """Test training and encoding."""
-        tokenizer = BPETokenizer(vocab_size=300, num_merges=10)
-        texts = ["Hello world", "Hello there", "World peace"]
-        
-        tokenizer.train(texts)
-        tokens = tokenizer.encode("Hello world")
-        
-        assert len(tokens) > 0
-        assert all(isinstance(t, int) for t in tokens)
-    
-    def test_encode_decode_roundtrip(self):
-        """Test roundtrip."""
-        tokenizer = BPETokenizer(vocab_size=300, num_merges=5)
-        texts = ["Hello world"]
-        
-        tokenizer.train(texts)
-        text = "Hello world"
-        tokens = tokenizer.encode(text)
-        decoded = tokenizer.decode(tokens)
-        
-        # Note: BPE decoding may not be exact due to </w> token
-        assert "Hello" in decoded
-        assert "world" in decoded.lower()
+class TestTokenizerCharacter:
+    def test_train_character(self, sample_text):
+        engine = TokenizerEngine(TokenizationStrategy.CHARACTER)
+        result = engine.train(sample_text)
+        assert result.final_size > 0
+
+    def test_encode_character(self, sample_text):
+        engine = TokenizerEngine(TokenizationStrategy.CHARACTER)
+        engine.train(sample_text)
+        enc = engine.encode("abc", add_special_tokens=False)
+        assert len(enc.tokens) == 3
 
 
-class TestTokenizerFactory:
-    """Test tokenizer factory."""
-    
-    def test_create_character(self):
-        """Test creating character tokenizer."""
-        tokenizer = TokenizerFactory.create("character", vocab_size=256)
-        assert isinstance(tokenizer, CharacterTokenizer)
-    
-    def test_create_word(self):
-        """Test creating word tokenizer."""
-        tokenizer = TokenizerFactory.create("word", vocab_size=1000)
-        assert isinstance(tokenizer, WordTokenizer)
-    
-    def test_create_bpe(self):
-        """Test creating BPE tokenizer."""
-        tokenizer = TokenizerFactory.create("bpe", vocab_size=1000)
-        assert isinstance(tokenizer, BPETokenizer)
-    
-    def test_create_unknown_raises(self):
-        """Test that unknown strategy raises error."""
-        with pytest.raises(TokenizationError):
-            TokenizerFactory.create("unknown")
-    
-    def test_get_or_create_caches(self):
-        """Test that get_or_create caches tokenizers."""
-        TokenizerFactory.clear_cache()
-        
-        t1 = TokenizerFactory.get_or_create("test", "character")
-        t2 = TokenizerFactory.get_or_create("test", "character")
-        
-        assert t1 is t2
+class TestTokenizerUnigram:
+    def test_train_unigram(self, sample_corpus):
+        engine = TokenizerEngine(TokenizationStrategy.UNIGRAM)
+        result = engine.train(sample_corpus, vocab_size=50)
+        assert result.final_size > 0
+        assert result.final_size <= 60  # allow some margin
+
+    def test_encode_unigram(self, sample_corpus):
+        engine = TokenizerEngine(TokenizationStrategy.UNIGRAM)
+        engine.train(sample_corpus, vocab_size=50)
+        enc = engine.encode("The fox", add_special_tokens=False)
+        assert len(enc.tokens) > 0
 
 
-class TestTokenizerSaveLoad:
-    """Test tokenizer serialization."""
-    
-    def test_save_load_character(self, tmp_path):
-        """Test saving and loading character tokenizer."""
-        tokenizer = CharacterTokenizer(vocab_size=128)
-        
-        save_path = tmp_path / "tokenizer.json"
-        tokenizer.save(str(save_path))
-        
-        loaded = CharacterTokenizer.load(str(save_path))
-        
-        assert loaded.get_vocab_size() == tokenizer.get_vocab_size()
-    
-    def test_save_load_bpe(self, tmp_path):
-        """Test saving and loading BPE tokenizer."""
-        tokenizer = BPETokenizer(vocab_size=300, num_merges=5)
-        tokenizer.train(["Hello world"])
-        
-        save_path = tmp_path / "bpe_tokenizer.json"
-        tokenizer.save(str(save_path))
-        
-        loaded = BPETokenizer.load(str(save_path))
-        
-        # Test that loaded tokenizer works
-        tokens1 = tokenizer.encode("Hello")
-        tokens2 = loaded.encode("Hello")
-        assert tokens1 == tokens2
+class TestTokenizerComparison:
+    def test_compare_strategies(self, sample_text):
+        engine = TokenizerEngine(TokenizationStrategy.BPE)
+        results = engine.compare_strategies(
+            sample_text,
+            [TokenizationStrategy.CHARACTER, TokenizationStrategy.BPE],
+        )
+        assert "character" in results
+        assert "bpe" in results
+        assert results["character"]["token_count"] > 0
+
+    def test_token_frequencies(self, sample_corpus):
+        engine = TokenizerEngine(TokenizationStrategy.CHARACTER)
+        engine.train(sample_corpus)
+        freqs = engine.get_token_frequencies(sample_corpus)
+        assert len(freqs) > 0
+
+    def test_stats(self):
+        engine = TokenizerEngine(TokenizationStrategy.BPE)
+        stats = engine.get_stats()
+        assert stats.strategy == "bpe"

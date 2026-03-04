@@ -1,52 +1,47 @@
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
+# ──────────────────────────────────────────────────────────────
+# Interactive LLM Learning Platform - Backend
+# Multi-stage build for production-optimized image
+# ──────────────────────────────────────────────────────────────
+
+FROM python:3.11-slim AS base
 
 WORKDIR /app
 
-# Set non-interactive mode for apt
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install system dependencies and Python 3.11
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    tzdata \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update \
-    && apt-get install -y \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
-    python3-pip \
-    gcc \
-    g++ \
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment with Python 3.11
-RUN python3.11 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# ─── Dependencies stage ─────────────────────────────────────
+FROM base AS deps
 
-# Upgrade pip
-RUN pip install --upgrade pip
-
-# Copy requirements
 COPY requirements.txt .
-
-# Install PyTorch with CUDA 12.1 support (GPU-enabled version)
-RUN pip install --no-cache-dir torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-
-# Install other Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY app/ ./app/
+# ─── Production stage ───────────────────────────────────────
+FROM base AS runner
 
-# Environment variables for GPU
-ENV NVIDIA_VISIBLE_DEVICES=all
-ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
-ENV CUDA_VISIBLE_DEVICES=0
-ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+# Create non-root user
+RUN groupadd --system appuser && \
+    useradd --system --gid appuser --create-home appuser
 
-# Expose port
+# Copy installed packages from deps stage
+COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=deps /usr/local/bin /usr/local/bin
+
+# Application code
+COPY --chown=appuser:appuser . .
+
+# Create necessary directories
+RUN mkdir -p checkpoints data logs && \
+    chown -R appuser:appuser checkpoints data logs
+
+USER appuser
+
 EXPOSE 8000
 
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "app.main:socket_app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

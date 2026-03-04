@@ -1,470 +1,298 @@
 """
-Training engine for GPT models with real-time metrics and checkpointing.
+Training Engine
+
+Manages the full training loop, metrics collection, gradient clipping,
+and real-time progress broadcasting for visualization.
 """
 
-import numpy as np
+from __future__ import annotations
+
 import time
-from typing import Optional, Callable, List, Dict, Any, Generator
+import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from enum import Enum
+from typing import Callable, Dict, List, Optional
 
-from app.models.gpt import MicroGPT, GPTConfig
-from app.core.optimizer import AdamW, clip_gradients, LinearWarmupCosineDecay
+import numpy as np
+
+from app.core.model import MicroGPT, GPTConfig
+from app.core.optimizers import AdamW, CosineScheduler
+from app.core.tensor import Tensor
 
 
-@dataclass
-class TrainingConfig:
-    """Configuration for training."""
-    # Model
-    model_config: GPTConfig = field(default_factory=GPTConfig)
-    
-    # Training
-    batch_size: int = 32
-    learning_rate: float = 3e-4
-    min_learning_rate: float = 3e-5
-    warmup_steps: int = 100
-    max_steps: int = 10000
-    max_epochs: Optional[int] = None
-    
-    # Optimization
-    grad_clip: float = 1.0
-    weight_decay: float = 0.1
-    betas: tuple = (0.9, 0.999)
-    
-    # Evaluation
-    eval_interval: int = 100
-    eval_steps: int = 10
-    
-    # Checkpointing
-    checkpoint_interval: int = 1000
-    checkpoint_dir: str = "./checkpoints"
-    
-    # Logging
-    log_interval: int = 10
-    
-    # Data
-    seq_length: int = 256
+class TrainingStatus(str, Enum):
+    IDLE = "idle"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 @dataclass
 class TrainingMetrics:
-    """Metrics from a training step."""
-    step: int
-    epoch: int
-    loss: float
-    perplexity: float
-    learning_rate: float
-    grad_norm: float
-    tokens_per_sec: float
-    time_elapsed: float
-    time_remaining: Optional[float] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'step': self.step,
-            'epoch': self.epoch,
-            'loss': round(self.loss, 4),
-            'perplexity': round(self.perplexity, 2),
-            'learning_rate': round(self.learning_rate, 6),
-            'grad_norm': round(self.grad_norm, 4),
-            'tokens_per_sec': round(self.tokens_per_sec, 1),
-            'time_elapsed': round(self.time_elapsed, 1),
-            'time_remaining': round(self.time_remaining, 1) if self.time_remaining else None,
-        }
+    step: int = 0
+    epoch: int = 0
+    loss: float = 0.0
+    learning_rate: float = 0.0
+    grad_norm: float = 0.0
+    tokens_per_sec: float = 0.0
+    elapsed_seconds: float = 0.0
+    perplexity: float = 0.0
 
 
-class DataLoader:
-    """
-    Simple data loader for text data.
-    Creates batches of sequences for language modeling.
-    """
-    
-    def __init__(self, data: np.ndarray, batch_size: int, seq_length: int,
-                 shuffle: bool = True):
-        """
-        Args:
-            data: Flat array of token IDs
-            batch_size: Number of sequences per batch
-            seq_length: Length of each sequence
-            shuffle: Whether to shuffle data
-        """
-        self.data = data
-        self.batch_size = batch_size
-        self.seq_length = seq_length
-        self.shuffle = shuffle
-        
-        # Calculate number of batches
-        self.num_tokens = len(data)
-        self.num_batches = self.num_tokens // (batch_size * seq_length)
-        
-    def __iter__(self):
-        """Iterate over batches."""
-        if self.shuffle:
-            # Shuffle data
-            indices = np.random.permutation(self.num_tokens - self.seq_length - 1)
-        else:
-            indices = np.arange(self.num_tokens - self.seq_length - 1)
-        
-        batch_idx = 0
-        while batch_idx < self.num_batches:
-            # Get batch indices
-            start_idx = batch_idx * self.batch_size
-            end_idx = min(start_idx + self.batch_size, len(indices))
-            batch_indices = indices[start_idx:end_idx]
-            
-            # Create sequences
-            x = np.zeros((len(batch_indices), self.seq_length), dtype=np.int32)
-            y = np.zeros((len(batch_indices), self.seq_length), dtype=np.int32)
-            
-            for i, idx in enumerate(batch_indices):
-                x[i] = self.data[idx:idx + self.seq_length]
-                y[i] = self.data[idx + 1:idx + self.seq_length + 1]
-            
-            yield x, y
-            batch_idx += 1
-    
-    def __len__(self):
-        return self.num_batches
+@dataclass
+class TrainingConfig:
+    num_epochs: int = 10
+    batch_size: int = 32
+    learning_rate: float = 3e-4
+    weight_decay: float = 0.01
+    warmup_steps: int = 100
+    max_steps: int = 1000
+    grad_clip: float = 1.0
+    eval_interval: int = 50
+    checkpoint_interval: int = 200
+    optimizer: str = "adamw"
+    scheduler: str = "cosine"
+    gradient_accumulation_steps: int = 1
+    mixed_precision: bool = False
+
+
+@dataclass
+class TrainingSession:
+    session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    status: TrainingStatus = TrainingStatus.IDLE
+    config: Optional[TrainingConfig] = None
+    model_config: Optional[GPTConfig] = None
+    metrics_history: List[TrainingMetrics] = field(default_factory=list)
+    best_loss: float = float("inf")
+    current_step: int = 0
+    total_steps: int = 0
 
 
 class TrainingEngine:
     """
-    Training engine for GPT models.
-    
-    Handles:
-    - Training loop with gradient accumulation
-    - Learning rate scheduling
-    - Gradient clipping
-    - Checkpointing
-    - Real-time metrics reporting
+    Manages model training with real-time metrics and visualization support.
     """
-    
-    def __init__(self, model: MicroGPT, config: TrainingConfig):
-        self.model = model
-        self.config = config
-        
+
+    def __init__(self):
+        self.sessions: Dict[str, TrainingSession] = {}
+
+    def create_session(
+        self,
+        model_config: GPTConfig,
+        training_config: TrainingConfig,
+    ) -> TrainingSession:
+        session = TrainingSession(
+            config=training_config,
+            model_config=model_config,
+            total_steps=training_config.max_steps,
+        )
+        self.sessions[session.session_id] = session
+        return session
+
+    def train(
+        self,
+        session_id: str,
+        data: np.ndarray,
+        on_step: Optional[Callable[[TrainingMetrics], None]] = None,
+    ) -> TrainingSession:
+        """
+        Execute training loop.
+
+        Args:
+            session_id: session identifier
+            data: (num_samples, seq_len) training data
+            on_step: callback invoked after each step with metrics
+        Returns:
+            Updated TrainingSession
+        """
+        session = self.sessions[session_id]
+        session.status = TrainingStatus.RUNNING
+        config = session.config
+
+        # Build model
+        model = MicroGPT(session.model_config)
+        model.set_training(True)
+
         # Optimizer
-        self.optimizer = AdamW(
+        optimizer = AdamW(
             model.parameters(),
             lr=config.learning_rate,
-            betas=config.betas,
-            weight_decay=config.weight_decay
+            weight_decay=config.weight_decay,
         )
-        
-        # Learning rate scheduler
-        self.scheduler = LinearWarmupCosineDecay(
-            self.optimizer,
-            warmup_steps=config.warmup_steps,
+
+        # Scheduler
+        scheduler = CosineScheduler(
+            optimizer,
             total_steps=config.max_steps,
-            min_lr_ratio=config.min_learning_rate / config.learning_rate
+            warmup_steps=config.warmup_steps,
         )
-        
-        # State
-        self.current_step = 0
-        self.current_epoch = 0
-        self.is_training = False
-        self.should_stop = False
-        
-        # Metrics history
-        self.metrics_history: List[TrainingMetrics] = []
-        self.best_loss = float('inf')
-        
-        # Callbacks
-        self.callbacks: List[Callable] = []
-        
-        # Timing
-        self.start_time = None
-        self.step_times: List[float] = []
-    
-    def add_callback(self, callback: Callable):
-        """Add a callback for metrics reporting."""
-        self.callbacks.append(callback)
-    
-    def train_step(self, x: np.ndarray, y: np.ndarray) -> TrainingMetrics:
-        """
-        Execute single training step.
-        
-        Args:
-            x: Input tokens (batch_size, seq_length)
-            y: Target tokens (batch_size, seq_length)
-        
-        Returns:
-            TrainingMetrics for this step
-        """
-        step_start = time.time()
-        
-        # Forward pass
-        logits, loss, _ = self.model.forward(x, targets=y)
-        
-        # Backward pass
-        self.model.zero_grad()
-        loss.backward()
-        
-        # Gradient clipping
-        grad_norm = clip_gradients(self.model.parameters(), self.config.grad_clip)
-        
-        # Optimizer step
-        self.optimizer.step()
-        
-        # Update learning rate
-        current_lr = self.scheduler.step()
-        
-        # Calculate metrics
-        loss_val = loss.item()
-        perplexity = np.exp(loss_val)
-        
-        # Timing
-        step_time = time.time() - step_start
-        self.step_times.append(step_time)
-        if len(self.step_times) > 100:
-            self.step_times.pop(0)
-        
-        # Tokens per second
-        tokens_per_sec = (x.shape[0] * x.shape[1]) / step_time
-        
-        # Time estimates
-        time_elapsed = time.time() - self.start_time if self.start_time else 0
-        avg_step_time = np.mean(self.step_times)
-        steps_remaining = self.config.max_steps - self.current_step
-        time_remaining = avg_step_time * steps_remaining if steps_remaining > 0 else None
-        
-        metrics = TrainingMetrics(
-            step=self.current_step,
-            epoch=self.current_epoch,
-            loss=loss_val,
-            perplexity=perplexity,
-            learning_rate=current_lr,
-            grad_norm=grad_norm,
-            tokens_per_sec=tokens_per_sec,
-            time_elapsed=time_elapsed,
-            time_remaining=time_remaining
-        )
-        
-        self.metrics_history.append(metrics)
-        
-        # Update best loss
-        if loss_val < self.best_loss:
-            self.best_loss = loss_val
-        
-        # Notify callbacks
-        for callback in self.callbacks:
-            callback(metrics)
-        
-        return metrics
-    
-    def train_epoch(self, train_loader: DataLoader, 
-                    val_loader: Optional[DataLoader] = None) -> Generator[TrainingMetrics, None, None]:
-        """
-        Train for one epoch.
-        
-        Yields:
-            TrainingMetrics after each step
-        """
-        self.model.train()
-        
-        for x, y in train_loader:
-            if self.should_stop or self.current_step >= self.config.max_steps:
-                break
-            
-            self.current_step += 1
-            metrics = self.train_step(x, y)
-            
-            yield metrics
-            
-            # Evaluation
-            if val_loader and self.current_step % self.config.eval_interval == 0:
-                val_loss = self.evaluate(val_loader)
-                print(f"Step {self.current_step}: Val Loss = {val_loss:.4f}")
-            
-            # Checkpointing
-            if self.current_step % self.config.checkpoint_interval == 0:
-                self.save_checkpoint()
-    
-    def evaluate(self, val_loader: DataLoader, max_steps: Optional[int] = None) -> float:
-        """
-        Evaluate model on validation set.
-        
-        Returns:
-            Average loss
-        """
-        self.model.eval()
-        
-        total_loss = 0.0
-        num_batches = 0
-        
-        for i, (x, y) in enumerate(val_loader):
-            if max_steps and i >= max_steps:
-                break
-            
-            logits, loss, _ = self.model.forward(x, targets=y)
-            total_loss += loss.item()
-            num_batches += 1
-        
-        self.model.train()
-        
-        return total_loss / num_batches if num_batches > 0 else float('inf')
-    
-    def train(self, train_data: np.ndarray, val_data: Optional[np.ndarray] = None) -> Generator[TrainingMetrics, None, None]:
-        """
-        Full training loop.
-        
-        Args:
-            train_data: Training token IDs
-            val_data: Optional validation token IDs
-        
-        Yields:
-            TrainingMetrics after each step
-        """
-        self.is_training = True
-        self.should_stop = False
-        self.start_time = time.time()
-        
-        train_loader = DataLoader(
-            train_data,
-            batch_size=self.config.batch_size,
-            seq_length=self.config.seq_length,
-            shuffle=True
-        )
-        
-        val_loader = None
-        if val_data is not None:
-            val_loader = DataLoader(
-                val_data,
-                batch_size=self.config.batch_size,
-                seq_length=self.config.seq_length,
-                shuffle=False
-            )
-        
-        epoch = 0
-        while self.current_step < self.config.max_steps:
-            if self.should_stop:
-                break
-            
-            self.current_epoch = epoch
-            print(f"\nEpoch {epoch + 1}")
-            
-            for metrics in self.train_epoch(train_loader, val_loader):
-                yield metrics
-            
-            epoch += 1
-            
-            if self.config.max_epochs and epoch >= self.config.max_epochs:
-                break
-        
-        self.is_training = False
-        print(f"\nTraining complete! Best loss: {self.best_loss:.4f}")
-    
-    def stop(self):
-        """Stop training gracefully."""
-        self.should_stop = True
-        self.is_training = False
-    
-    def save_checkpoint(self, path: Optional[str] = None):
-        """Save model checkpoint."""
-        import os
-        import pickle
-        
-        if path is None:
-            os.makedirs(self.config.checkpoint_dir, exist_ok=True)
-            path = os.path.join(
-                self.config.checkpoint_dir,
-                f"checkpoint_step_{self.current_step}.pkl"
-            )
-        
-        checkpoint = {
-            'model_state': self.model.state_dict(),
-            'optimizer_state': {
-                'm': self.optimizer.m,
-                'v': self.optimizer.v,
-                'step_count': self.optimizer.step_count,
-            },
-            'scheduler_state': {
-                'step_count': self.scheduler.optimizer.step_count,
-            },
-            'current_step': self.current_step,
-            'current_epoch': self.current_epoch,
-            'best_loss': self.best_loss,
-            'metrics_history': self.metrics_history,
-            'config': self.config,
-        }
-        
-        with open(path, 'wb') as f:
-            pickle.dump(checkpoint, f)
-        
-        print(f"Checkpoint saved to {path}")
-    
-    def load_checkpoint(self, path: str):
-        """Load model checkpoint."""
-        import pickle
-        
-        with open(path, 'rb') as f:
-            checkpoint = pickle.load(f)
-        
-        self.model.load_state_dict(checkpoint['model_state'])
-        self.optimizer.m = checkpoint['optimizer_state']['m']
-        self.optimizer.v = checkpoint['optimizer_state']['v']
-        self.optimizer.step_count = checkpoint['optimizer_state']['step_count']
-        self.scheduler.optimizer.step_count = checkpoint['scheduler_state']['step_count']
-        self.current_step = checkpoint['current_step']
-        self.current_epoch = checkpoint['current_epoch']
-        self.best_loss = checkpoint['best_loss']
-        self.metrics_history = checkpoint['metrics_history']
-        
-        print(f"Checkpoint loaded from {path}")
-    
-    def get_status(self) -> Dict[str, Any]:
-        """Get current training status."""
-        return {
-            'is_training': self.is_training,
-            'current_step': self.current_step,
-            'current_epoch': self.current_epoch,
-            'best_loss': self.best_loss,
-            'progress': self.current_step / self.config.max_steps,
-        }
 
+        num_samples = len(data)
+        start_time = time.time()
+        accum_steps = max(config.gradient_accumulation_steps, 1)
+        loss_scale = 65536.0 if config.mixed_precision else 1.0
 
-class Callback:
-    """Base callback class."""
-    
-    def on_train_begin(self, engine: TrainingEngine):
-        pass
-    
-    def on_train_end(self, engine: TrainingEngine):
-        pass
-    
-    def on_step_end(self, metrics: TrainingMetrics):
-        pass
-    
-    def on_epoch_end(self, epoch: int, metrics: TrainingMetrics):
-        pass
+        try:
+            for step in range(config.max_steps):
+                if session.status == TrainingStatus.PAUSED:
+                    break
 
+                accumulated_loss = 0.0
+                model.zero_grad()
 
-class MetricsLogger(Callback):
-    """Callback to log metrics to file."""
-    
-    def __init__(self, log_file: str):
-        self.log_file = log_file
-    
-    def on_step_end(self, metrics: TrainingMetrics):
-        with open(self.log_file, 'a') as f:
-            f.write(f"{metrics.to_dict()}\n")
+                for accum_step in range(accum_steps):
+                    # Sample batch
+                    indices = np.random.randint(0, num_samples, size=config.batch_size)
+                    batch = data[indices]
+                    inputs = batch[:, :-1]
+                    targets = batch[:, 1:]
 
+                    # Forward pass with optional FP16-style reduced precision
+                    result = model.forward(inputs, targets)
+                    loss = result["loss"]
 
-class EarlyStopping(Callback):
-    """Early stopping callback."""
-    
-    def __init__(self, patience: int = 10, min_delta: float = 0.0):
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.best_loss = float('inf')
-    
-    def on_step_end(self, metrics: TrainingMetrics):
-        if metrics.loss < self.best_loss - self.min_delta:
-            self.best_loss = metrics.loss
-            self.counter = 0
-        else:
-            self.counter += 1
-        
-        if self.counter >= self.patience:
-            print(f"Early stopping triggered after {self.patience} steps without improvement")
+                    if config.mixed_precision:
+                        # Approximate mixed precision by quantizing loss to float16
+                        loss = float(np.float16(loss))
+
+                    accumulated_loss += loss / accum_steps
+
+                    # Backward pass with loss scaling
+                    loss_tensor = result["loss_tensor"]
+                    loss_tensor.data = loss_tensor.data * (loss_scale / accum_steps)
+                    loss_tensor.backward()
+
+                # Unscale gradients if using mixed precision
+                if config.mixed_precision:
+                    for p in model.parameters():
+                        if p.grad is not None:
+                            p.grad = p.grad / loss_scale
+
+                # Gradient clipping
+                grad_norm = self._clip_gradients(model.parameters(), config.grad_clip)
+
+                # Optimizer step
+                optimizer.step()
+                scheduler.step()
+
+                elapsed = time.time() - start_time
+                effective_batch = config.batch_size * accum_steps
+                tokens_per_sec = (
+                    (step + 1) * effective_batch * inputs.shape[1] / max(elapsed, 1e-6)
+                )
+
+                metrics = TrainingMetrics(
+                    step=step,
+                    epoch=step * effective_batch // num_samples,
+                    loss=accumulated_loss,
+                    learning_rate=optimizer.lr,
+                    grad_norm=grad_norm,
+                    tokens_per_sec=tokens_per_sec,
+                    elapsed_seconds=elapsed,
+                    perplexity=min(float(np.exp(accumulated_loss)), 1e6),
+                )
+
+                session.metrics_history.append(metrics)
+                session.current_step = step
+
+                if loss < session.best_loss:
+                    session.best_loss = loss
+
+                if on_step:
+                    on_step(metrics)
+
+            session.status = TrainingStatus.COMPLETED
+
+        except Exception as e:
+            session.status = TrainingStatus.FAILED
+            raise
+
+        return session
+
+    def pause_session(self, session_id: str):
+        if session_id in self.sessions:
+            self.sessions[session_id].status = TrainingStatus.PAUSED
+
+    def get_session(self, session_id: str) -> Optional[TrainingSession]:
+        return self.sessions.get(session_id)
+
+    @staticmethod
+    def _clip_gradients(params: List[Tensor], max_norm: float) -> float:
+        """Clip gradients by global norm. Returns the original norm."""
+        total_norm_sq = 0.0
+        for p in params:
+            if p.grad is not None:
+                total_norm_sq += float(np.sum(p.grad ** 2))
+        total_norm = float(np.sqrt(total_norm_sq))
+
+        if total_norm > max_norm and total_norm > 0:
+            scale = max_norm / total_norm
+            for p in params:
+                if p.grad is not None:
+                    p.grad *= scale
+
+        return total_norm
+
+    # Real educational text corpus for training data
+    TRAINING_CORPUS = [
+        "The transformer architecture was introduced in the paper Attention Is All You Need in 2017.",
+        "Language models predict the next token in a sequence based on the context of preceding tokens.",
+        "Self-attention allows each position in the sequence to attend to all other positions.",
+        "The key, query, and value projections are fundamental components of the attention mechanism.",
+        "Positional encoding provides information about the relative or absolute position of tokens.",
+        "The feed-forward network in each transformer layer applies two linear transformations.",
+        "Layer normalization stabilizes training by normalizing activations across the feature dimension.",
+        "Dropout is a regularization technique that randomly sets a fraction of inputs to zero.",
+        "The softmax function converts logits into a probability distribution over possible tokens.",
+        "Cross-entropy loss measures the difference between predicted and actual token distributions.",
+        "Gradient descent optimizes model parameters by following the negative gradient of the loss.",
+        "Learning rate warmup gradually increases the learning rate at the beginning of training.",
+        "Weight decay adds a penalty term to prevent model weights from growing too large.",
+        "Residual connections allow gradients to flow directly through the network without degradation.",
+        "Multi-head attention projects queries, keys, and values into multiple subspaces.",
+        "The vocabulary size determines the number of unique tokens the model can process.",
+        "Tokenization splits text into smaller units that the model can understand and process.",
+        "Embedding layers convert discrete token indices into continuous vector representations.",
+        "The model dimension determines the size of the hidden representations throughout the network.",
+        "Beam search explores multiple generation paths to find higher probability sequences.",
+        "Temperature scaling controls the randomness of the sampling distribution during generation.",
+        "Top-k sampling restricts generation to the k most probable next tokens at each step.",
+        "Nucleus sampling selects from the smallest set of tokens whose cumulative probability exceeds p.",
+        "Perplexity measures how well a probability model predicts a sample of text data.",
+        "BLEU score evaluates the quality of machine-generated text against reference translations.",
+        "ROUGE metrics assess the quality of summaries by comparing overlap with reference summaries.",
+        "Fine-tuning adapts a pretrained model to a specific downstream task using labeled data.",
+        "Transfer learning leverages knowledge learned on one task to improve performance on another.",
+        "Data augmentation increases training set diversity by applying transformations to existing data.",
+        "Overfitting occurs when a model learns training data noise rather than underlying patterns.",
+        "Regularization techniques help prevent overfitting by constraining the model complexity.",
+        "The attention mask prevents the model from attending to future tokens during training.",
+        "Causal language modeling trains the model to predict each token given only previous tokens.",
+        "The encoder processes input sequences while the decoder generates output sequences.",
+        "Autoregressive generation produces tokens one at a time conditioned on previous outputs.",
+        "The context window determines the maximum number of tokens the model can process at once.",
+        "Gradient clipping prevents exploding gradients by limiting the gradient magnitude.",
+        "Mixed precision training uses both float16 and float32 to reduce memory and increase speed.",
+        "Reinforcement learning from human feedback aligns model outputs with human preferences.",
+        "Low-rank adaptation reduces the number of trainable parameters by decomposing weight updates.",
+    ]
+
+    @staticmethod
+    def generate_sample_data(
+        vocab_size: int = 256,
+        num_samples: int = 1000,
+        seq_len: int = 64,
+    ) -> np.ndarray:
+        """Generate training data by encoding real English text into token sequences."""
+        corpus_text = " ".join(TrainingEngine.TRAINING_CORPUS)
+        encoded = np.array([ord(c) % vocab_size for c in corpus_text], dtype=np.int64)
+        corpus_len = len(encoded)
+
+        data = np.zeros((num_samples, seq_len), dtype=np.int64)
+        for i in range(num_samples):
+            start = (i * 37) % max(corpus_len - seq_len, 1)
+            for j in range(seq_len):
+                data[i, j] = encoded[(start + j) % corpus_len]
+
+        return data

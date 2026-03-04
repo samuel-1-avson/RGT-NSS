@@ -1,0 +1,9 @@
+{
+  "name": "LLM Learning Platform",
+  "short_name": "LLM Platform",
+  "description": "Interactive LLM Learning Platform - Master AI from first principles",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#6366f1"
+}
