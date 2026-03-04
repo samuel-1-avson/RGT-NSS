@@ -72,19 +72,27 @@ async def find_similar(request: SimilarityRequest):
         vocab_size=request.vocab_size,
         embedding_dim=request.d_model,
     )
-
-    results = layer.get_similar_tokens(
-        request.query_id,
-        k=request.top_k,
-        metric=request.metric,
-    )
+    
+    import torch
+    weights = layer.token_embedding.weight.data
+    query_vec = weights[request.query_id].unsqueeze(0)
+    
+    if request.metric == "cosine":
+        sim = torch.nn.functional.cosine_similarity(query_vec, weights)
+    else:
+        # l2 distance converted to a similarity score format
+        sim = -torch.cdist(query_vec, weights).squeeze()
+        
+    top_indices = torch.topk(sim, k=request.top_k + 1).indices
+    top_indices = [idx.item() for idx in top_indices if idx.item() != request.query_id][:request.top_k]
+    scores = sim[top_indices].tolist()
 
     return {
         "query_id": request.query_id,
         "metric": request.metric,
         "similar_tokens": [
-            {"token_id": int(item.token_id), "token": item.token, "score": float(item.score)}
-            for item in results
+            {"token_id": idx, "token": f"token_{idx}", "score": float(score)}
+            for idx, score in zip(top_indices, scores)
         ],
     }
 
@@ -96,14 +104,34 @@ async def compute_analogy(request: AnalogyRequest):
         vocab_size=request.vocab_size,
         embedding_dim=request.d_model,
     )
+    import torch
 
-    results = layer.compute_analogy(request.a, request.b, request.c, k=request.top_k)
+    weights = layer.token_embedding.weight.data
+    # a is to b as c is to d => d = b - a + c
+    vec_a = weights[request.a]
+    vec_b = weights[request.b]
+    vec_c = weights[request.c]
+    
+    target_vec = (vec_b - vec_a + vec_c).unsqueeze(0)
+    sim = torch.nn.functional.cosine_similarity(target_vec, weights)
+    
+    # Exclude input tokens
+    exclude = {request.a, request.b, request.c}
+    top_indices = []
+    scores = []
+    
+    for idx in torch.argsort(sim, descending=True):
+        if idx.item() not in exclude:
+            top_indices.append(idx.item())
+            scores.append(sim[idx].item())
+        if len(top_indices) >= request.top_k:
+            break
 
     return {
         "analogy": f"{request.a} : {request.b} :: {request.c} : ?",
         "results": [
-            {"token_id": int(item.token_id), "token": item.token, "score": float(item.score)}
-            for item in results
+            {"token_id": idx, "token": f"token_{idx}", "score": float(score)}
+            for idx, score in zip(top_indices, scores)
         ],
     }
 
@@ -115,16 +143,30 @@ async def analyze_geometry(request: EmbeddingRequest):
         vocab_size=request.vocab_size,
         embedding_dim=request.d_model,
     )
-
-    analysis = layer.analyze_geometry()
+    import torch
+    
+    weights = layer.token_embedding.weight.data
+    norms = torch.norm(weights, dim=1)
+    mean_norm = norms.mean().item()
+    std_norm = norms.std().item()
+    
+    # Simple isometry score logic for demo
+    centered = weights - weights.mean(dim=0)
+    cov = (centered.T @ centered) / weights.shape[0]
+    eigenvalues = torch.linalg.eigvalsh(cov).real
+    
+    # Avoid div zero
+    total_var = eigenvalues.sum().clamp_min(1e-9)
+    isotropy_score = (eigenvalues.min() / eigenvalues.max()).item() if eigenvalues.max() > 0 else 0
+    effective_dimensionality = (total_var**2 / (eigenvalues**2).sum().clamp_min(1e-9)).item()
 
     return {
         "token_ids": request.token_ids,
-        "mean_norm": float(analysis.mean_norm),
-        "std_norm": float(analysis.std_norm),
-        "isotropy_score": float(analysis.isotropy),
-        "effective_dimensionality": float(analysis.effective_dimensionality),
-        "eigenvalue_spectrum": analysis.eigenvalue_spectrum[:10],
+        "mean_norm": float(mean_norm),
+        "std_norm": float(std_norm),
+        "isotropy_score": float(isotropy_score),
+        "effective_dimensionality": float(effective_dimensionality),
+        "eigenvalue_spectrum": eigenvalues.tolist()[:10],
     }
 
 

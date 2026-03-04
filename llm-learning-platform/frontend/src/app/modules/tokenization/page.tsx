@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { tokenizationApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -49,138 +50,166 @@ export default function TokenizationPage() {
   });
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="p-8 max-w-7xl mx-auto space-y-8"
+    >
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">Tokenization Lab</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-bold mb-2 tracking-tight text-foreground/90">Tokenization Lab</h1>
+        <p className="text-muted-foreground max-w-3xl">
           Explore how text is broken into tokens — the fundamental building
           blocks that LLMs process.
         </p>
       </div>
 
       {/* Input Section */}
-      <div className="glass rounded-2xl p-6 space-y-4">
-        <label className="text-sm font-medium">Input Text</label>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="glass rounded-2xl p-6 space-y-4"
+      >
+        <label className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest">Input Text</label>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="w-full h-32 rounded-xl border border-border bg-background p-4 font-mono text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:outline-none"
+          className="w-full h-32 rounded-xl border border-white/10 bg-black/20 p-4 font-mono text-sm resize-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all outline-none text-foreground/90"
           placeholder="Enter text to tokenize..."
         />
 
         {/* Sample texts */}
-        <div className="flex flex-wrap gap-2">
-          <span className="text-xs text-muted-foreground">Try:</span>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mr-2">Try:</span>
           {SAMPLE_TEXTS.map((sample, i) => (
             <button
               key={i}
               onClick={() => setText(sample)}
-              className="text-xs px-2 py-1 rounded-lg bg-muted hover:bg-muted/80 transition-colors truncate max-w-xs"
+              className="text-xs px-2.5 py-1.5 rounded-md bg-white/5 border border-white/5 hover:bg-white/10 transition-colors truncate max-w-[200px] text-muted-foreground hover:text-foreground"
             >
-              {sample.slice(0, 40)}...
+              {sample.slice(0, 30)}...
             </button>
           ))}
         </div>
 
         {/* Strategy Selection */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4">
           {STRATEGIES.map((s) => (
             <button
               key={s.value}
               onClick={() => setStrategy(s.value)}
               className={cn(
-                "p-3 rounded-xl border text-left transition-all",
+                "p-4 rounded-xl border text-left transition-all relative overflow-hidden group",
                 strategy === s.value
-                  ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
-                  : "border-border hover:border-primary-300"
+                  ? "border-primary/50 bg-primary/5"
+                  : "border-white/10 hover:border-white/20 hover:bg-white/5"
               )}
             >
-              <div className="font-medium text-sm">{s.label}</div>
-              <div className="text-xs text-muted-foreground">{s.description}</div>
+              {strategy === s.value && (
+                <motion.div
+                  layoutId="activeStrategy"
+                  className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-50"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              <div className="font-semibold text-[15px] mb-1 text-foreground/90 relative z-10">{s.label}</div>
+              <div className="text-xs text-muted-foreground leading-relaxed relative z-10">{s.description}</div>
             </button>
           ))}
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 pt-2">
           <button
             onClick={() => tokenize.mutate()}
             disabled={tokenize.isPending || !text}
-            className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+            className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-medium transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:shadow-none text-sm"
           >
-            {tokenize.isPending ? "Tokenizing..." : "Tokenize"}
+            {tokenize.isPending ? "Tokenizing..." : "Tokenize Sequence"}
           </button>
           <button
             onClick={() => compare.mutate()}
             disabled={compare.isPending || !text}
-            className="px-6 py-2.5 glass rounded-xl font-medium hover:bg-white/90 dark:hover:bg-gray-800/90 transition-colors disabled:opacity-50"
+            className="px-6 py-2.5 glass rounded-xl font-medium transition-all disabled:opacity-50 hover:bg-white/10 text-sm"
           >
-            {compare.isPending ? "Comparing..." : "Compare All Strategies"}
+            {compare.isPending ? "Comparing..." : "Compare Strategies"}
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Results */}
       {result && (
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Tokenization Result</h2>
-            <div className="flex gap-4 text-sm text-muted-foreground">
-              <span>
-                <strong className="text-foreground">{result.token_count}</strong> tokens
-              </span>
-              <span>
-                Vocab: <strong className="text-foreground">{result.vocab_size}</strong>
-              </span>
-              <span>
-                Compression:{" "}
-                <strong className="text-foreground">
-                  {result.compression_ratio?.toFixed(2)}x
-                </strong>
-              </span>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass rounded-2xl p-6 space-y-6 border-primary/20"
+        >
+          <div className="flex items-center justify-between pb-4 border-b border-white/10">
+            <h2 className="text-lg font-semibold text-primary">Tokenization Result</h2>
+            <div className="flex gap-6 text-sm">
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Tokens</span>
+                <span className="font-mono text-foreground text-lg">{result.token_count}</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Vocab Size</span>
+                <span className="font-mono text-foreground text-lg">{result.vocab_size}</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Compression</span>
+                <span className="font-mono text-accent text-lg">{result.compression_ratio?.toFixed(2)}x</span>
+              </div>
             </div>
           </div>
 
           {/* Token Visualization */}
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 p-4 bg-black/20 rounded-xl border border-white/5">
             {result.tokens?.map((token: string, i: number) => (
-              <span
+              <motion.span
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.01 }}
                 key={i}
                 className={cn(
-                  "px-2 py-1 rounded-lg border text-sm font-mono cursor-default",
+                  "px-2 py-1 rounded-md border text-sm font-mono cursor-default shadow-sm",
                   TOKEN_COLORS[i % TOKEN_COLORS.length]
                 )}
                 title={`ID: ${result.token_ids?.[i]}`}
               >
                 {token.replace(/ /g, "·")}
-              </span>
+              </motion.span>
             ))}
           </div>
 
           {/* Token IDs */}
           <div>
-            <h3 className="text-sm font-medium mb-2">Token IDs</h3>
-            <div className="code-block">
+            <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Token IDs Sequence</h3>
+            <div className="code-block bg-black/40 border-white/10 text-muted-foreground">
               [{result.token_ids?.join(", ")}]
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Comparison Results */}
       {compareResult && (
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <h2 className="text-xl font-semibold">Strategy Comparison</h2>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass rounded-2xl p-6 space-y-4"
+        >
+          <h2 className="text-lg font-semibold text-foreground/90">Strategy Comparison</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {compareResult.comparisons?.map((comp: any) => (
               <div
                 key={comp.strategy}
-                className="rounded-xl border border-border p-4 space-y-2"
+                className="rounded-xl border border-white/10 bg-black/10 p-5 space-y-3"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium capitalize">{comp.strategy}</span>
-                  <span className="text-sm text-muted-foreground">
+                <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <span className="font-semibold text-primary capitalize">{comp.strategy}</span>
+                  <span className="text-xs font-mono text-muted-foreground bg-white/5 px-2 py-0.5 rounded">
                     {comp.num_tokens} tokens
                   </span>
                 </div>
@@ -188,13 +217,13 @@ export default function TokenizationPage() {
                   {comp.tokens?.slice(0, 30).map((t: string, i: number) => (
                     <span
                       key={i}
-                      className="px-1.5 py-0.5 rounded text-xs font-mono bg-muted"
+                      className="px-1.5 py-0.5 rounded textxs font-mono bg-white/5 text-foreground/80 border border-white/5"
                     >
                       {t.replace(/ /g, "·")}
                     </span>
                   ))}
                   {comp.tokens?.length > 30 && (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground self-center ml-2 italic">
                       +{comp.tokens.length - 30} more
                     </span>
                   )}
@@ -202,45 +231,48 @@ export default function TokenizationPage() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       )}
 
-      {/* Educational Content */}
-      <div className="glass rounded-2xl p-6 space-y-4">
-        <h2 className="text-xl font-semibold">How Tokenization Works</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-muted-foreground">
-          <div>
-            <h3 className="font-medium text-foreground mb-1">Character Tokenization</h3>
-            <p>
-              The simplest approach — each character becomes a token. Results in
-              long sequences but a tiny vocabulary. No out-of-vocabulary issues.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-medium text-foreground mb-1">BPE (Byte Pair Encoding)</h3>
-            <p>
-              Used by GPT models. Iteratively merges the most frequent character
-              pairs to build a subword vocabulary. Balances vocabulary size with
-              sequence length.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-medium text-foreground mb-1">WordPiece</h3>
-            <p>
-              Used by BERT. Similar to BPE but uses likelihood-based scoring
-              instead of frequency. Prefixes subwords with ## for continuation.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-medium text-foreground mb-1">Word Tokenization</h3>
-            <p>
-              Splits on whitespace and punctuation. Simple but creates huge
-              vocabularies and cannot handle unseen words. Rarely used in modern
-              LLMs.
-            </p>
-          </div>
+      {/* Educational Callouts */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-8 border-t border-white/5"
+      >
+        <div className="p-5 rounded-2xl border-l-2 border-primary bg-primary/5">
+          <h3 className="font-semibold text-primary mb-2 text-sm">Character Tokenization</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            The simplest approach — each character becomes a token. Results in
+            long sequences but a tiny vocabulary. Eliminates unknown word (OOV) tokens completely.
+          </p>
         </div>
-      </div>
-    </div>
+
+        <div className="p-5 rounded-2xl border-l-2 border-accent bg-accent/5">
+          <h3 className="font-semibold text-accent mb-2 text-sm">BPE (Byte Pair Encoding)</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Used by GPT frameworks. Iteratively merges the most frequent character
+            pairs to build a subword vocabulary, optimizing the balance between vocabulary size and sequence length.
+          </p>
+        </div>
+
+        <div className="p-5 rounded-2xl border-l-2 border-orange-500/50 bg-orange-500/5">
+          <h3 className="font-semibold text-orange-400 mb-2 text-sm">WordPiece / BERT</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Standard format for BERT. Similar to BPE but uses likelihood-based scoring
+            instead of pure frequency. Prefixes subwords with `##` to denote continuation.
+          </p>
+        </div>
+
+        <div className="p-5 rounded-2xl border-l-2 border-emerald-500/50 bg-emerald-500/5">
+          <h3 className="font-semibold text-emerald-400 mb-2 text-sm">Word Tokenization</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Splits strictly on whitespace and punctuation markers. While human-readable, it creates unmanageably huge
+            vocabularies and lacks the ability to handle unseen words. Rarely used in modern LLMs.
+          </p>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

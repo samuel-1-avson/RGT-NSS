@@ -124,26 +124,13 @@ def run_benchmark_suite(model_name: str = "MicroGPT") -> Dict:
     bleu_result = compute_bleu(reference_texts[0], generated_text)
     rouge_result = compute_rouge(reference_texts[0], generated_text)
 
-    benchmarks = {
-        "perplexity": perplexity_results,
-        "aggregate_perplexity": round(float(compute_perplexity(all_losses)), 2),
-        "generation_quality": {
-            "avg_bleu": bleu_result["bleu"],
-            "bleu_precisions": bleu_result["precisions"],
-            "avg_rouge1_f1": rouge_result["rouge1"]["f1"],
-            "avg_rouge2_f1": rouge_result["rouge2"]["f1"],
-            "avg_rougeL_f1": rouge_result["rougeL"]["f1"],
-        },
-        "model_info": {
-            "name": model_name,
-            "parameters": config.num_parameters,
-            "d_model": config.d_model,
-            "num_layers": config.num_layers,
-            "num_heads": config.num_heads,
-            "vocab_size": config.vocab_size,
-        },
-        "generated_sample": generated_text[:200],
-    }
+    benchmarks = [
+        {"name": "Perplexity", "score": round(float(compute_perplexity(all_losses)), 2), "category": "Language Modeling"},
+        {"name": "BLEU", "score": bleu_result["bleu"], "category": "Generation"},
+        {"name": "ROUGE-1", "score": rouge_result["rouge1"]["f1"], "category": "Summarization"},
+        {"name": "ROUGE-2", "score": rouge_result["rouge2"]["f1"], "category": "Summarization"},
+        {"name": "ROUGE-L", "score": rouge_result["rougeL"]["f1"], "category": "Summarization"},
+    ]
 
     return {"model_name": model_name, "benchmarks": benchmarks}
 

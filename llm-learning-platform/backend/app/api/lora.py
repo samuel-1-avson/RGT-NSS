@@ -53,21 +53,25 @@ async def create_lora(req: LoRACreateRequest):
 async def lora_forward(req: LoRAForwardRequest):
     """Run a forward pass through a LoRA layer and inspect matrices."""
     import numpy as np
+    import torch
     layer = LoRALayer(req.d_model, req.d_model, rank=req.rank)
+    
     # Generate input from real text encoding
     text = "The transformer model uses self-attention to process input sequences efficiently."
     encoded = [ord(c) % req.d_model for c in text]
-    x = np.zeros((1, req.seq_len, req.d_model), dtype=np.float32)
+    
+    x = torch.zeros((1, req.seq_len, req.d_model), dtype=torch.float32)
     for i in range(req.seq_len):
         x[0, i, encoded[i % len(encoded)]] = 1.0  # one-hot from real chars
-    output = layer.forward(x.reshape(-1, req.d_model))
+        
+    output = layer.forward(x.view(-1, req.d_model)).detach().cpu().numpy()
 
-    delta_w = layer.get_delta_w()
+    delta_w = (layer.lora_B @ layer.lora_A * layer.scaling).detach().cpu().numpy()
     return {
         "input_shape": list(x.shape),
         "output_shape": [1, req.seq_len, req.d_model],
-        "A_shape": list(layer.A.shape),
-        "B_shape": list(layer.B.shape),
+        "A_shape": list(layer.lora_A.shape),
+        "B_shape": list(layer.lora_B.shape),
         "delta_w_norm": round(float(np.linalg.norm(delta_w)), 4),
         "delta_w_rank": req.rank,
         "scaling": layer.scaling,

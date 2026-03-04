@@ -37,17 +37,17 @@ export function Header() {
   const xpProgress = Math.min((xpInLevel / xpForCurrentLevel) * 100, 100);
 
   return (
-    <header className="h-14 border-b border-border bg-card/80 backdrop-blur-sm flex items-center justify-between px-6">
+    <header className="h-14 border-b border-white/5 bg-background/40 backdrop-blur-xl flex items-center justify-between px-6 z-40">
       <div>
-        <h1 className="text-lg font-semibold">{title}</h1>
+        <h1 className="text-[15px] font-medium text-foreground/90 tracking-wide">{title}</h1>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-5">
         {/* Difficulty Mode Toggle */}
         <select
           value={difficultyMode}
           onChange={(e) => setDifficultyMode(e.target.value as DifficultyMode)}
-          className="text-xs px-2 py-1 rounded-lg border border-border bg-background cursor-pointer"
+          className="text-[11px] px-2.5 py-1.5 rounded-md border border-white/10 bg-black/20 text-muted-foreground outline-none cursor-pointer focus:border-primary/50 transition-colors uppercase tracking-wider font-medium"
         >
           <option value="beginner">Beginner</option>
           <option value="intermediate">Intermediate</option>
@@ -56,38 +56,42 @@ export function Header() {
 
         {/* Streak */}
         {streak > 0 && (
-          <div className="flex items-center gap-1 text-xs text-orange-500">
+          <div className="flex items-center gap-1.5 text-xs text-orange-400/90 font-mono">
             <Flame className="w-3.5 h-3.5" />
-            <span className="font-bold">{streak}</span>
+            <span>{streak}</span>
           </div>
         )}
 
+        <div className="h-4 w-px bg-white/10 mx-1" />
+
         {/* Search */}
-        <button className="p-2 rounded-lg hover:bg-muted transition-colors">
-          <Search className="w-4 h-4 text-muted-foreground" />
+        <button className="text-muted-foreground hover:text-foreground transition-colors">
+          <Search className="w-4 h-4" />
         </button>
 
         {/* Notifications */}
-        <button className="p-2 rounded-lg hover:bg-muted transition-colors relative">
-          <Bell className="w-4 h-4 text-muted-foreground" />
-          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-card" />
+        <button className="text-muted-foreground hover:text-foreground transition-colors relative">
+          <Bell className="w-4 h-4" />
+          <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
         </button>
 
+        <div className="h-4 w-px bg-white/10 mx-1" />
+
         {/* XP Display */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-primary-500/10 to-accent-500/10 border border-primary-500/20">
-          <span className="text-xs font-medium text-primary-500">LVL {level}</span>
-          <div className="w-20 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold text-primary tracking-widest uppercase">Lvl {level}</span>
+          <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-primary-500 to-accent-500 rounded-full transition-all"
+              className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
               style={{ width: `${xpProgress}%` }}
             />
           </div>
-          <span className="text-xs text-muted-foreground">{xp} XP</span>
+          <span className="text-[10px] text-muted-foreground font-mono">{xp} XP</span>
         </div>
 
         {/* User Avatar */}
-        <button className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center">
-          <User className="w-4 h-4 text-white" />
+        <button className="w-7 h-7 ml-2 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors">
+          <User className="w-3.5 h-3.5 text-foreground/70" />
         </button>
       </div>
     </header>

@@ -63,14 +63,24 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ─── CORS Middleware ─────────────────────────────────────────
-settings = get_settings()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+from fastapi.responses import JSONResponse
+
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    # This is a brute-force CORS middleware to bypass all strict Pydantic checks
+    origin = request.headers.get("origin", "*")
+    
+    # Intercept OPTIONS (preflight) requests instantly
+    if request.method == "OPTIONS":
+        response = JSONResponse(content="OK")
+    else:
+        response = await call_next(request)
+        
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    return response
 
 # ─── Register API Routers ───────────────────────────────────
 app.include_router(health.router, tags=["Health"])

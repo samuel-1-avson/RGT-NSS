@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { visualizationsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -63,47 +64,61 @@ export default function AttentionPage() {
   const headData = result?.heads?.[selectedHead];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="p-8 max-w-7xl mx-auto space-y-8"
+    >
       <div>
-        <h1 className="text-3xl font-bold mb-2">Attention Visualizer</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-bold mb-2 tracking-tight text-foreground/90">Attention Visualizer</h1>
+        <p className="text-muted-foreground max-w-3xl">
           Explore how self-attention works by visualizing attention weights
           across different heads and attention types.
         </p>
       </div>
 
       {/* Controls */}
-      <div className="glass rounded-2xl p-6 space-y-4">
-        <div className="grid grid-cols-3 gap-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="glass rounded-2xl p-6 space-y-6"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <label className="text-sm font-medium mb-1 block">Sequence Length</label>
-            <input
-              type="range"
-              min={2}
-              max={32}
-              value={seqLen}
-              onChange={(e) => setSeqLen(parseInt(e.target.value))}
-              className="w-full"
-            />
-            <span className="text-sm text-muted-foreground">{seqLen} tokens</span>
+            <label className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest mb-3 block">Sequence Length</label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={2}
+                max={32}
+                value={seqLen}
+                onChange={(e) => setSeqLen(parseInt(e.target.value))}
+                className="w-full accent-primary h-1.5 bg-black/40 rounded-full appearance-none outline-none focus:ring-1 focus:ring-primary/50"
+              />
+              <span className="text-sm font-mono text-muted-foreground min-w-[50px]">{seqLen} tok</span>
+            </div>
           </div>
           <div>
-            <label className="text-sm font-medium mb-1 block">Number of Heads</label>
-            <input
-              type="range"
-              min={1}
-              max={16}
-              value={numHeads}
-              onChange={(e) => {
-                const next = parseInt(e.target.value, 10);
-                setNumHeads(getNearestValidHead(dModel, next));
-              }}
-              className="w-full"
-            />
-            <span className="text-sm text-muted-foreground">{numHeads} heads</span>
+            <label className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest mb-3 block">Number of Heads</label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={1}
+                max={16}
+                value={numHeads}
+                onChange={(e) => {
+                  const next = parseInt(e.target.value, 10);
+                  setNumHeads(getNearestValidHead(dModel, next));
+                }}
+                className="w-full accent-primary h-1.5 bg-black/40 rounded-full appearance-none outline-none focus:ring-1 focus:ring-primary/50"
+              />
+              <span className="text-sm font-mono text-muted-foreground min-w-[50px]">{numHeads} h</span>
+            </div>
           </div>
           <div>
-            <label className="text-sm font-medium mb-1 block">d_model</label>
+            <label className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">Model Dimensions (d_model)</label>
             <select
               value={dModel}
               onChange={(e) => {
@@ -111,7 +126,7 @@ export default function AttentionPage() {
                 setDModel(nextDModel);
                 setNumHeads((prev) => getNearestValidHead(nextDModel, prev));
               }}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all text-foreground/90 font-mono"
             >
               {[32, 64, 128, 256].map((d) => (
                 <option key={d} value={d}>{d}</option>
@@ -121,52 +136,68 @@ export default function AttentionPage() {
         </div>
 
         {/* Attention Type */}
-        <div className="grid grid-cols-4 gap-3">
-          {ATTENTION_TYPES.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setAttentionType(t.value)}
-              className={cn(
-                "p-3 rounded-xl border text-left transition-all",
-                attentionType === t.value
-                  ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
-                  : "border-border hover:border-primary-300"
-              )}
-            >
-              <div className="font-medium text-sm">{t.label}</div>
-              <div className="text-xs text-muted-foreground">{t.description}</div>
-            </button>
-          ))}
+        <div className="pt-2">
+          <label className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">Attention Architecture</label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {ATTENTION_TYPES.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setAttentionType(t.value)}
+                className={cn(
+                  "p-4 rounded-xl border text-left transition-all relative overflow-hidden group",
+                  attentionType === t.value
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-white/10 hover:border-white/20 hover:bg-white/5"
+                )}
+              >
+                {attentionType === t.value && (
+                  <motion.div
+                    layoutId="activeAttentionType"
+                    className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-50"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+                <div className="font-semibold text-[15px] mb-1 text-foreground/90 relative z-10">{t.label}</div>
+                <div className="text-xs text-muted-foreground leading-relaxed relative z-10">{t.description}</div>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <button
-          onClick={() => computeAttention.mutate()}
-          disabled={computeAttention.isPending}
-          className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
-        >
-          {computeAttention.isPending ? "Computing..." : "Compute Attention"}
-        </button>
-      </div>
+        <div className="pt-2">
+          <button
+            onClick={() => computeAttention.mutate()}
+            disabled={computeAttention.isPending}
+            className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-medium transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:shadow-none text-sm"
+          >
+            {computeAttention.isPending ? "Computing..." : "Compute Attention Weights"}
+          </button>
+        </div>
+      </motion.div>
 
       {/* Results */}
       {result && (
-        <div className="grid grid-cols-3 gap-6">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        >
           {/* Heatmap */}
-          <div className="col-span-2 glass rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">
-                Attention Heatmap — Head {selectedHead}
+          <div className="col-span-1 md:col-span-2 glass rounded-2xl p-6 border-primary/20">
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
+              <h2 className="text-lg font-semibold text-primary">
+                Attention Heatmap <span className="text-muted-foreground font-normal">| Head {selectedHead}</span>
               </h2>
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                 {result.heads?.map((_: any, i: number) => (
                   <button
                     key={i}
                     onClick={() => setSelectedHead(i)}
                     className={cn(
-                      "w-8 h-8 rounded-lg text-xs font-medium transition-colors",
+                      "w-8 h-8 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center",
                       i === selectedHead
-                        ? "bg-primary-600 text-white"
-                        : "bg-muted hover:bg-muted/80"
+                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
+                        : "bg-white/5 hover:bg-white/10 text-muted-foreground border border-white/5"
                     )}
                   >
                     H{i}
@@ -177,11 +208,11 @@ export default function AttentionPage() {
 
             {/* Heatmap Grid */}
             {headData && (
-              <div className="overflow-auto">
+              <div className="overflow-x-auto pb-4 custom-scrollbar">
                 <div
-                  className="grid gap-0.5"
+                  className="grid gap-0.5 min-w-max"
                   style={{
-                    gridTemplateColumns: `40px repeat(${seqLen}, 1fr)`,
+                    gridTemplateColumns: `40px repeat(${seqLen}, minmax(32px, 1fr))`,
                   }}
                 >
                   {/* Column headers */}
@@ -189,7 +220,7 @@ export default function AttentionPage() {
                   {Array.from({ length: seqLen }, (_, i) => (
                     <div
                       key={i}
-                      className="text-center text-xs text-muted-foreground py-1"
+                      className="text-center text-[10px] font-mono text-muted-foreground py-1"
                     >
                       K{i}
                     </div>
@@ -197,10 +228,9 @@ export default function AttentionPage() {
 
                   {/* Rows */}
                   {headData.weights?.map((row: number[], qi: number) => (
-                    <>
+                    <div key={`row-${qi}`} className="contents">
                       <div
-                        key={`label-${qi}`}
-                        className="text-xs text-muted-foreground flex items-center"
+                        className="text-[10px] font-mono text-muted-foreground flex items-center justify-end pr-2"
                       >
                         Q{qi}
                       </div>
@@ -208,15 +238,15 @@ export default function AttentionPage() {
                         <div
                           key={`${qi}-${ki}`}
                           className={cn(
-                            "heatmap-cell aspect-square rounded-sm flex items-center justify-center text-[10px] font-mono",
+                            "heatmap-cell aspect-square rounded-sm flex items-center justify-center text-[10px] font-mono border border-black/20",
                             getHeatColor(w)
                           )}
                           title={`Q${qi}→K${ki}: ${w.toFixed(4)}`}
                         >
-                          {seqLen <= 12 ? w.toFixed(2) : ""}
+                          {seqLen <= 12 ? (w > 0.05 ? w.toFixed(2).replace('0.', '.') : "") : ""}
                         </div>
                       ))}
-                    </>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -225,61 +255,73 @@ export default function AttentionPage() {
 
           {/* Head Statistics */}
           <div className="glass rounded-2xl p-6 space-y-4">
-            <h2 className="text-xl font-semibold">Head Statistics</h2>
-            {result.heads?.map((head: any, i: number) => (
-              <div
-                key={i}
-                onClick={() => setSelectedHead(i)}
-                className={cn(
-                  "p-3 rounded-xl border cursor-pointer transition-all",
-                  i === selectedHead
-                    ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
-                    : "border-border hover:border-primary-300"
-                )}
-              >
-                <div className="flex justify-between mb-1">
-                  <span className="font-medium text-sm">Head {i}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                  <div>
-                    Entropy:{" "}
-                    <span className="text-foreground">{head.entropy?.toFixed(3)}</span>
+            <h2 className="text-lg font-semibold text-foreground/90 pb-2 border-b border-white/10">Head Statistics</h2>
+            <div className="space-y-3">
+              {result.heads?.map((head: any, i: number) => (
+                <div
+                  key={i}
+                  onClick={() => setSelectedHead(i)}
+                  className={cn(
+                    "p-4 rounded-xl border cursor-pointer transition-all relative overflow-hidden",
+                    i === selectedHead
+                      ? "border-primary/50 bg-primary/5"
+                      : "border-white/10 hover:border-white/20 bg-black/10"
+                  )}
+                >
+                  {i === selectedHead && (
+                    <motion.div
+                      layoutId="activeHeadStat"
+                      className="absolute inset-0 bg-primary/10 border border-primary/20 rounded-xl"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <div className="flex justify-between items-center mb-2 relative z-10">
+                    <span className="font-semibold text-sm text-foreground/90">Head {i}</span>
+                    {i === selectedHead && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
                   </div>
-                  <div>
-                    Sparsity:{" "}
-                    <span className="text-foreground">
-                      {(head.sparsity * 100).toFixed(1)}%
-                    </span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground font-mono relative z-10">
+                    <div className="flex flex-col">
+                      <span className="opacity-70">Entropy</span>
+                      <span className="text-foreground text-xs mt-0.5">{head.entropy?.toFixed(3)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="opacity-70">Sparsity</span>
+                      <span className="text-foreground text-xs mt-0.5">
+                        {(head.sparsity * 100).toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
-      {/* Educational */}
-      <div className="glass rounded-2xl p-6">
-        <h2 className="text-xl font-semibold mb-4">Understanding Attention</h2>
-        <div className="grid grid-cols-2 gap-6 text-sm text-muted-foreground">
-          <div>
-            <h3 className="font-medium text-foreground mb-1">Self-Attention Mechanism</h3>
-            <p>
-              Each position creates Query (Q), Key (K), and Value (V) vectors.
-              Attention weights are computed as softmax(QK^T / √d_k),
-              then used to create a weighted sum of values.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-medium text-foreground mb-1">Multi-Head Attention</h3>
-            <p>
-              Multiple attention heads run in parallel, each learning different
-              patterns — some attend to nearby tokens, others to syntactic
-              structure or semantic relationships.
-            </p>
-          </div>
+      {/* Educational Callouts */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-8 border-t border-white/5"
+      >
+        <div className="p-5 rounded-2xl border-l-2 border-primary bg-primary/5">
+          <h3 className="font-semibold text-primary mb-2 text-sm">Self-Attention Mechanism</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Each position creates Query (Q), Key (K), and Value (V) vectors.
+            Attention weights are computed as softmax(QK^T / √d_k),
+            then used to create a weighted sum of values. This allows words to seamlessly route context to one another.
+          </p>
         </div>
-      </div>
-    </div>
+        <div className="p-5 rounded-2xl border-l-2 border-accent bg-accent/5">
+          <h3 className="font-semibold text-accent mb-2 text-sm">Multi-Head Attention</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Multiple attention heads operate in parallel subspaces, each learning different
+            patterns — some heads focus heavily on nearby tokens, while others identify broader syntactic
+            rules and long-range semantic dependencies.
+          </p>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

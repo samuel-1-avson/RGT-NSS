@@ -213,6 +213,11 @@ class MicroGPT(nn.Module):
 
         if isinstance(prompt, np.ndarray):
             prompt = torch.from_numpy(prompt).long()
+        
+        # Ensure 2D shape (batch, seq) - assume batch=1 if 1D array provided
+        if prompt.dim() == 1:
+            prompt = prompt.unsqueeze(0)
+            
         prompt = prompt.to(self.device)
 
         generated = prompt.clone()
@@ -220,10 +225,10 @@ class MicroGPT(nn.Module):
 
         with torch.no_grad():
             for step in range(max_new_tokens):
-                # Truncate to max_seq_len
+                # Truncate to max_seq_len safely now that it is 2D
                 context = generated[:, -self.config.max_seq_len:]
                 result = self._forward_for_generation(context)
-                logits = result[:, -1, :]  # Last position
+                logits = result[:, -1, :]  # Last position (batch=1 usually)
 
                 # Temperature scaling
                 logits = logits / max(temperature, 1e-8)
@@ -238,10 +243,13 @@ class MicroGPT(nn.Module):
                 if top_p < 1.0:
                     sorted_logits, sorted_indices = torch.sort(logits, descending=True)
                     cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+                    # We want to remove all tokens with index strictly greater than the cutoff
                     cutoff = cumulative_probs > top_p
                     cutoff[:, 1:] = cutoff[:, :-1].clone()
                     cutoff[:, 0] = False
-                    indices_to_remove = cutoff.scatter(1, sorted_indices, cutoff)
+                    
+                    # Create boolean mask for original logits tensor based on sorted cutoff
+                    indices_to_remove = torch.zeros_like(logits, dtype=torch.bool).scatter_(1, sorted_indices, cutoff)
                     logits[indices_to_remove] = float("-inf")
 
                 probs = F.softmax(logits, dim=-1)
@@ -250,7 +258,7 @@ class MicroGPT(nn.Module):
 
                 step_info.append({
                     "step": step,
-                    "token_id": next_token.item(),
+                    "token_id": next_token[0].item(), # Extract single integer
                     "top_probs": probs[0].topk(5).values.cpu().numpy().tolist(),
                     "top_tokens": probs[0].topk(5).indices.cpu().numpy().tolist(),
                 })

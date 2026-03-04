@@ -58,13 +58,15 @@ async def get_attention_heatmap(request: AttentionHeatmapRequest):
     )
 
     # Use real text-derived input instead of random data
+    import torch
     text = "Attention is all you need for understanding transformer architecture."
     token_values = [ord(c) % request.d_model for c in text]
-    x = np.zeros((1, request.seq_len, request.d_model), dtype=np.float32)
+    x = torch.zeros((1, request.seq_len, request.d_model), dtype=torch.float32)
     for i in range(request.seq_len):
         x[0, i, token_values[i % len(token_values)]] = 1.0
-    result = attention.compute_step_by_step(x, store_intermediates=False)
-    weights = result.attention_weights  # (batch, heads, seq, seq)
+        
+    result = attention.forward_step_by_step(x)
+    weights = np.array([result["attention_weights"]])  # Wrap in dummy batch dim: (1, heads, seq, seq)
 
     head_data = []
     for h in range(request.num_heads):
@@ -92,15 +94,16 @@ async def get_embedding_scatter(request: EmbeddingScatterRequest):
         embedding_dim=request.d_model,
     )
 
-    ids = np.array([request.token_ids])
-    embeddings = layer.weight.data[ids[0]]  # (seq, d_model)
+    import torch
+    ids = torch.tensor([request.token_ids])
+    embeddings = layer.token_embedding.weight.data[ids[0]].detach().cpu().numpy()  # (seq, d_model)
 
     # PCA reduction to 2D or 3D for the selected tokens.
     centered = embeddings - embeddings.mean(axis=0, keepdims=True)
     cov = (centered.T @ centered) / max(centered.shape[0], 1)
     eigenvalues, eigenvectors = np.linalg.eigh(cov)
     idx = np.argsort(eigenvalues)[::-1][:request.n_components]
-    components = eigenvectors[:, idx]
+    components = eigenvectors[:, idx].copy() # Ensure positive strides
     coords = (centered @ components).astype(np.float32)
 
     points = []
@@ -125,7 +128,8 @@ async def get_embedding_scatter(request: EmbeddingScatterRequest):
 async def get_loss_curve(request: LossCurveRequest):
     """Generate real loss curve by running actual model forward passes."""
     from app.core.model import MicroGPT, GPTConfig
-    from app.core.trainer import TrainingEngine
+    from app.core.trainer import Trainer, TextDataset, TRAINING_CORPUS
+    import torch
 
     config = GPTConfig(
         vocab_size=256, d_model=64, num_heads=2, num_layers=2,
@@ -134,10 +138,11 @@ async def get_loss_curve(request: LossCurveRequest):
     model = MicroGPT(config)
     model.set_training(False)
 
-    # Use real text data
-    data = TrainingEngine.generate_sample_data(
-        vocab_size=config.vocab_size, num_samples=200, seq_len=config.max_seq_len,
-    )
+    # Use real text data using TextDataset
+    dataset = TextDataset(TRAINING_CORPUS, seq_len=config.max_seq_len)
+    # Generate 200 sample rows
+    x, y = dataset.get_batch(200)
+    data = torch.cat((x, y[:, -1:]), dim=1).cpu().numpy() # [b, seq+1] shape matching old logic
 
     steps_list = []
     train_losses = []
@@ -152,8 +157,10 @@ async def get_loss_curve(request: LossCurveRequest):
         # Training loss: forward pass on a batch of real data
         start_idx = (step * batch_size) % max(num_samples - batch_size, 1)
         batch = data[start_idx : start_idx + batch_size]
-        inputs = batch[:, :-1]
-        targets = batch[:, 1:]
+        
+        import torch
+        inputs = torch.tensor(batch[:, :-1], dtype=torch.long)
+        targets = torch.tensor(batch[:, 1:], dtype=torch.long)
 
         result = model.forward(inputs, targets)
         train_loss = float(result["loss"])
@@ -161,7 +168,11 @@ async def get_loss_curve(request: LossCurveRequest):
         # Validation loss: different batch of real data
         val_start = ((step + num_samples // 2) * batch_size) % max(num_samples - batch_size, 1)
         val_batch = data[val_start : val_start + batch_size]
-        val_result = model.forward(val_batch[:, :-1], val_batch[:, 1:])
+        
+        val_inputs = torch.tensor(val_batch[:, :-1], dtype=torch.long)
+        val_targets = torch.tensor(val_batch[:, 1:], dtype=torch.long)
+        
+        val_result = model.forward(val_inputs, val_targets)
         val_loss = float(val_result["loss"])
 
         steps_list.append(step)

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
+import { motion } from "framer-motion";
 import type { ComponentType } from "react";
 import {
   BookOpen,
@@ -101,20 +102,28 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+      <nav className="flex-1 overflow-y-auto p-4 space-y-1 relative">
         {navigation.map((item, idx) => {
           if ("href" in item) {
+            const isActive = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={clsx(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                  pathname === item.href
-                    ? "bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  "relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors z-10",
+                  isActive
+                    ? "text-primary-400 font-medium"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
+                {isActive && (
+                  <motion.div
+                    layoutId="activeNav"
+                    className="absolute inset-0 bg-primary-900/20 border border-primary-500/20 rounded-lg -z-10"
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  />
+                )}
                 <item.icon className="w-4 h-4" />
                 {item.name}
               </Link>
@@ -123,24 +132,34 @@ export function Sidebar() {
 
           return (
             <div key={idx} className="pt-4">
-              <div className="px-3 mb-2 text-xs font-semibold text-muted-foreground tracking-wider">
+              <div className="px-3 mb-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-80">
                 {item.name}
               </div>
-              {item.items.map((sub) => (
-                <Link
-                  key={sub.href}
-                  href={sub.href}
-                  className={clsx(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                    pathname === sub.href
-                      ? "bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <sub.icon className="w-4 h-4" />
-                  {sub.name}
-                </Link>
-              ))}
+              {item.items.map((sub) => {
+                const isActive = pathname === sub.href;
+                return (
+                  <Link
+                    key={sub.href}
+                    href={sub.href}
+                    className={clsx(
+                      "relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors z-10",
+                      isActive
+                        ? "text-primary-400 font-medium"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeNav"
+                        className="absolute inset-0 bg-primary-900/20 border border-primary-500/20 rounded-lg -z-10"
+                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                      />
+                    )}
+                    <sub.icon className="w-4 h-4" />
+                    {sub.name}
+                  </Link>
+                );
+              })}
             </div>
           );
         })}
