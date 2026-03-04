@@ -37,3 +37,12 @@ node_modules/
 
 # Vercel
 .vercel/
+
+# Model artifacts
+backend/checkpoints/
+*.npz
+*.h5
+
+# SQLite dev database
+*.db
+*.db-journal

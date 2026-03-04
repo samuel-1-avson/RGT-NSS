@@ -1,298 +1,317 @@
 """
-Training Engine
+Training Engine — PyTorch GPU-accelerated Training Loop
 
-Manages the full training loop, metrics collection, gradient clipping,
-and real-time progress broadcasting for visualization.
+Real training loop with AdamW optimizer, gradient clipping,
+learning rate scheduling, and WebSocket progress streaming.
 """
 
 from __future__ import annotations
 
-import time
-import uuid
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Callable, Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.optim import AdamW, SGD, Adam
+from torch.optim.lr_scheduler import CosineAnnealingLR, OneCycleLR, StepLR
 
-from app.core.model import MicroGPT, GPTConfig
-from app.core.optimizers import AdamW, CosineScheduler
-from app.core.tensor import Tensor
-
-
-class TrainingStatus(str, Enum):
-    IDLE = "idle"
-    RUNNING = "running"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-@dataclass
-class TrainingMetrics:
-    step: int = 0
-    epoch: int = 0
-    loss: float = 0.0
-    learning_rate: float = 0.0
-    grad_norm: float = 0.0
-    tokens_per_sec: float = 0.0
-    elapsed_seconds: float = 0.0
-    perplexity: float = 0.0
+from app.core.device import get_device, get_device_info
+from app.core.model import MicroGPT, GPTConfig, PRESET_CONFIGS
 
 
 @dataclass
 class TrainingConfig:
-    num_epochs: int = 10
-    batch_size: int = 32
+    """Training hyperparameters."""
     learning_rate: float = 3e-4
     weight_decay: float = 0.01
-    warmup_steps: int = 100
-    max_steps: int = 1000
+    batch_size: int = 4
+    max_steps: int = 100
+    warmup_steps: int = 10
     grad_clip: float = 1.0
-    eval_interval: int = 50
-    checkpoint_interval: int = 200
-    optimizer: str = "adamw"
-    scheduler: str = "cosine"
-    gradient_accumulation_steps: int = 1
-    mixed_precision: bool = False
+    optimizer: str = "adamw"  # adam, adamw, sgd
+    scheduler: str = "cosine"  # cosine, step, onecycle, none
+    eval_interval: int = 10
+    log_interval: int = 5
+    accumulation_steps: int = 1
 
 
 @dataclass
-class TrainingSession:
-    session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    status: TrainingStatus = TrainingStatus.IDLE
-    config: Optional[TrainingConfig] = None
-    model_config: Optional[GPTConfig] = None
-    metrics_history: List[TrainingMetrics] = field(default_factory=list)
-    best_loss: float = float("inf")
-    current_step: int = 0
-    total_steps: int = 0
+class TrainStepResult:
+    """Result of a single training step."""
+    step: int
+    loss: float
+    learning_rate: float
+    grad_norm: float = 0.0
+    tokens_per_sec: float = 0.0
+    gpu_memory_mb: float = 0.0
 
 
-class TrainingEngine:
-    """
-    Manages model training with real-time metrics and visualization support.
-    """
+class TextDataset:
+    """Simple character-level dataset for training demonstrations."""
 
-    def __init__(self):
-        self.sessions: Dict[str, TrainingSession] = {}
-
-    def create_session(
-        self,
-        model_config: GPTConfig,
-        training_config: TrainingConfig,
-    ) -> TrainingSession:
-        session = TrainingSession(
-            config=training_config,
-            model_config=model_config,
-            total_steps=training_config.max_steps,
+    def __init__(self, text: str, seq_len: int, vocab_size: int = 256):
+        self.vocab_size = vocab_size
+        self.seq_len = seq_len
+        # Character-level tokenization (simple but real)
+        self.token_ids = torch.tensor(
+            [ord(c) % vocab_size for c in text], dtype=torch.long, device=get_device()
         )
-        self.sessions[session.session_id] = session
-        return session
+
+    def __len__(self) -> int:
+        return max(1, len(self.token_ids) - self.seq_len - 1)
+
+    def get_batch(self, batch_size: int) -> tuple:
+        """Get a random batch of (input, target) pairs."""
+        max_start = len(self.token_ids) - self.seq_len - 1
+        if max_start <= 0:
+            # If text is too short, pad with repeats
+            padded = self.token_ids.repeat(self.seq_len * 2 // len(self.token_ids) + 1)
+            self.token_ids = padded
+            max_start = len(self.token_ids) - self.seq_len - 1
+
+        indices = torch.randint(0, max_start, (batch_size,))
+        x = torch.stack([self.token_ids[i : i + self.seq_len] for i in indices])
+        y = torch.stack([self.token_ids[i + 1 : i + self.seq_len + 1] for i in indices])
+        return x, y
+
+
+# ─── Training Corpus ─────────────────────────────────────────
+
+TRAINING_CORPUS = """
+The transformer architecture has revolutionized natural language processing.
+Self-attention mechanisms allow the model to weigh the importance of different
+parts of the input sequence when producing an output. Unlike recurrent neural
+networks, transformers process all positions in parallel, making them much
+faster to train on modern hardware.
+
+Key components of a transformer include multi-head attention, feed-forward
+neural networks, layer normalization, and residual connections. The attention
+mechanism computes query, key, and value projections, then uses scaled
+dot-product attention to determine how much each position should attend to
+every other position.
+
+Language models like GPT use decoder-only transformer architectures. They
+are trained with a causal language modeling objective, predicting the next
+token given all previous tokens. This autoregressive approach enables text
+generation by sampling one token at a time.
+
+Training involves minimizing the cross-entropy loss between the model's
+predicted token probabilities and the actual next tokens in the training
+data. Techniques like gradient clipping, learning rate warmup, and weight
+decay help stabilize the training process.
+
+Modern large language models are trained on massive datasets using distributed
+training across many GPUs. Techniques like data parallelism, model parallelism,
+and pipeline parallelism allow training models with billions of parameters.
+Fine-tuning with RLHF (Reinforcement Learning from Human Feedback) aligns
+the model's outputs with human preferences and values.
+"""
+
+
+class Trainer:
+    """
+    GPU-accelerated model trainer with real PyTorch optimization.
+
+    Supports AdamW, gradient clipping, LR scheduling, and
+    step-by-step training visualization.
+    """
+
+    def __init__(
+        self,
+        model: Optional[MicroGPT] = None,
+        config: Optional[TrainingConfig] = None,
+        training_text: Optional[str] = None,
+    ):
+        self.config = config or TrainingConfig()
+
+        # Create model if not provided
+        if model is None:
+            model_config = PRESET_CONFIGS["nano"]
+            model = MicroGPT(model_config)
+        self.model = model
+        self.model.train()
+
+        # Setup optimizer
+        self.optimizer = self._create_optimizer()
+        self.scheduler = self._create_scheduler()
+
+        # Setup dataset
+        text = training_text or TRAINING_CORPUS
+        self.dataset = TextDataset(
+            text,
+            seq_len=min(self.model.config.max_seq_len, 64),
+            vocab_size=self.model.config.vocab_size,
+        )
+
+        self.step_count = 0
+        self.history: List[TrainStepResult] = []
+
+    def _create_optimizer(self) -> torch.optim.Optimizer:
+        """Create optimizer with weight decay separation."""
+        # Separate weight decay for non-bias/norm parameters
+        decay_params = []
+        no_decay_params = []
+        for name, param in self.model.named_parameters():
+            if not param.requires_grad:
+                continue
+            if "bias" in name or "norm" in name or "embedding" in name:
+                no_decay_params.append(param)
+            else:
+                decay_params.append(param)
+
+        param_groups = [
+            {"params": decay_params, "weight_decay": self.config.weight_decay},
+            {"params": no_decay_params, "weight_decay": 0.0},
+        ]
+
+        if self.config.optimizer == "adamw":
+            return AdamW(param_groups, lr=self.config.learning_rate, betas=(0.9, 0.95))
+        elif self.config.optimizer == "adam":
+            return Adam(param_groups, lr=self.config.learning_rate)
+        elif self.config.optimizer == "sgd":
+            return SGD(param_groups, lr=self.config.learning_rate, momentum=0.9)
+        else:
+            return AdamW(param_groups, lr=self.config.learning_rate)
+
+    def _create_scheduler(self):
+        """Create learning rate scheduler."""
+        if self.config.scheduler == "cosine":
+            return CosineAnnealingLR(self.optimizer, T_max=self.config.max_steps)
+        elif self.config.scheduler == "step":
+            return StepLR(self.optimizer, step_size=30, gamma=0.5)
+        elif self.config.scheduler == "onecycle":
+            return OneCycleLR(
+                self.optimizer,
+                max_lr=self.config.learning_rate * 10,
+                total_steps=self.config.max_steps,
+            )
+        return None
+
+    def train_step(self) -> TrainStepResult:
+        """Execute a single training step with real gradient computation."""
+        self.model.train()
+
+        # Get batch
+        x, y = self.dataset.get_batch(self.config.batch_size)
+
+        # Forward pass
+        result = self.model.forward(x, targets=y)
+        loss = result["_loss_tensor"]
+
+        # Backward pass
+        self.optimizer.zero_grad()
+        loss.backward()
+
+        # Gradient clipping
+        grad_norm = torch.nn.utils.clip_grad_norm_(
+            self.model.parameters(), self.config.grad_clip
+        ).item()
+
+        # Optimizer step
+        self.optimizer.step()
+        if self.scheduler:
+            self.scheduler.step()
+
+        self.step_count += 1
+
+        # GPU memory tracking
+        gpu_mem = 0.0
+        if torch.cuda.is_available():
+            gpu_mem = torch.cuda.memory_allocated() / 1e6
+
+        lr = self.optimizer.param_groups[0]["lr"]
+
+        step_result = TrainStepResult(
+            step=self.step_count,
+            loss=loss.item(),
+            learning_rate=lr,
+            grad_norm=round(grad_norm, 4),
+            gpu_memory_mb=round(gpu_mem, 1),
+        )
+
+        self.history.append(step_result)
+        return step_result
 
     def train(
         self,
-        session_id: str,
-        data: np.ndarray,
-        on_step: Optional[Callable[[TrainingMetrics], None]] = None,
-    ) -> TrainingSession:
+        num_steps: Optional[int] = None,
+        callback: Optional[Callable] = None,
+    ) -> List[Dict]:
         """
-        Execute training loop.
+        Run training for N steps.
 
         Args:
-            session_id: session identifier
-            data: (num_samples, seq_len) training data
-            on_step: callback invoked after each step with metrics
+            num_steps: override config.max_steps
+            callback: called after each step with TrainStepResult
         Returns:
-            Updated TrainingSession
+            List of step results as dicts
         """
-        session = self.sessions[session_id]
-        session.status = TrainingStatus.RUNNING
-        config = session.config
+        steps = num_steps or self.config.max_steps
+        results = []
 
-        # Build model
-        model = MicroGPT(session.model_config)
-        model.set_training(True)
+        for _ in range(steps):
+            step_result = self.train_step()
+            result_dict = {
+                "step": step_result.step,
+                "loss": round(step_result.loss, 6),
+                "learning_rate": step_result.learning_rate,
+                "grad_norm": step_result.grad_norm,
+                "gpu_memory_mb": step_result.gpu_memory_mb,
+            }
+            results.append(result_dict)
+            if callback:
+                callback(step_result)
 
-        # Optimizer
-        optimizer = AdamW(
-            model.parameters(),
-            lr=config.learning_rate,
-            weight_decay=config.weight_decay,
-        )
+        return results
 
-        # Scheduler
-        scheduler = CosineScheduler(
-            optimizer,
-            total_steps=config.max_steps,
-            warmup_steps=config.warmup_steps,
-        )
+    def get_training_summary(self) -> Dict:
+        """Get summary of training progress."""
+        if not self.history:
+            return {"status": "not_started"}
 
-        num_samples = len(data)
-        start_time = time.time()
-        accum_steps = max(config.gradient_accumulation_steps, 1)
-        loss_scale = 65536.0 if config.mixed_precision else 1.0
+        losses = [h.loss for h in self.history]
+        return {
+            "total_steps": len(self.history),
+            "final_loss": round(losses[-1], 6),
+            "best_loss": round(min(losses), 6),
+            "initial_loss": round(losses[0], 6),
+            "loss_reduction": round((losses[0] - losses[-1]) / max(losses[0], 1e-8) * 100, 1),
+            "device": str(get_device()),
+            "model_params": self.model.parameters_count(),
+            "config": {
+                "lr": self.config.learning_rate,
+                "optimizer": self.config.optimizer,
+                "scheduler": self.config.scheduler,
+                "batch_size": self.config.batch_size,
+                "grad_clip": self.config.grad_clip,
+            },
+        }
 
-        try:
-            for step in range(config.max_steps):
-                if session.status == TrainingStatus.PAUSED:
-                    break
 
-                accumulated_loss = 0.0
-                model.zero_grad()
+def quick_train(
+    preset: str = "nano",
+    num_steps: int = 50,
+    learning_rate: float = 3e-4,
+    training_text: Optional[str] = None,
+) -> Dict:
+    """Quick-start training with sensible defaults."""
+    model_config = PRESET_CONFIGS.get(preset, PRESET_CONFIGS["nano"])
+    model = MicroGPT(model_config)
 
-                for accum_step in range(accum_steps):
-                    # Sample batch
-                    indices = np.random.randint(0, num_samples, size=config.batch_size)
-                    batch = data[indices]
-                    inputs = batch[:, :-1]
-                    targets = batch[:, 1:]
+    train_config = TrainingConfig(
+        learning_rate=learning_rate,
+        max_steps=num_steps,
+        batch_size=4,
+    )
 
-                    # Forward pass with optional FP16-style reduced precision
-                    result = model.forward(inputs, targets)
-                    loss = result["loss"]
+    trainer = Trainer(model=model, config=train_config, training_text=training_text)
+    results = trainer.train(num_steps=num_steps)
 
-                    if config.mixed_precision:
-                        # Approximate mixed precision by quantizing loss to float16
-                        loss = float(np.float16(loss))
-
-                    accumulated_loss += loss / accum_steps
-
-                    # Backward pass with loss scaling
-                    loss_tensor = result["loss_tensor"]
-                    loss_tensor.data = loss_tensor.data * (loss_scale / accum_steps)
-                    loss_tensor.backward()
-
-                # Unscale gradients if using mixed precision
-                if config.mixed_precision:
-                    for p in model.parameters():
-                        if p.grad is not None:
-                            p.grad = p.grad / loss_scale
-
-                # Gradient clipping
-                grad_norm = self._clip_gradients(model.parameters(), config.grad_clip)
-
-                # Optimizer step
-                optimizer.step()
-                scheduler.step()
-
-                elapsed = time.time() - start_time
-                effective_batch = config.batch_size * accum_steps
-                tokens_per_sec = (
-                    (step + 1) * effective_batch * inputs.shape[1] / max(elapsed, 1e-6)
-                )
-
-                metrics = TrainingMetrics(
-                    step=step,
-                    epoch=step * effective_batch // num_samples,
-                    loss=accumulated_loss,
-                    learning_rate=optimizer.lr,
-                    grad_norm=grad_norm,
-                    tokens_per_sec=tokens_per_sec,
-                    elapsed_seconds=elapsed,
-                    perplexity=min(float(np.exp(accumulated_loss)), 1e6),
-                )
-
-                session.metrics_history.append(metrics)
-                session.current_step = step
-
-                if loss < session.best_loss:
-                    session.best_loss = loss
-
-                if on_step:
-                    on_step(metrics)
-
-            session.status = TrainingStatus.COMPLETED
-
-        except Exception as e:
-            session.status = TrainingStatus.FAILED
-            raise
-
-        return session
-
-    def pause_session(self, session_id: str):
-        if session_id in self.sessions:
-            self.sessions[session_id].status = TrainingStatus.PAUSED
-
-    def get_session(self, session_id: str) -> Optional[TrainingSession]:
-        return self.sessions.get(session_id)
-
-    @staticmethod
-    def _clip_gradients(params: List[Tensor], max_norm: float) -> float:
-        """Clip gradients by global norm. Returns the original norm."""
-        total_norm_sq = 0.0
-        for p in params:
-            if p.grad is not None:
-                total_norm_sq += float(np.sum(p.grad ** 2))
-        total_norm = float(np.sqrt(total_norm_sq))
-
-        if total_norm > max_norm and total_norm > 0:
-            scale = max_norm / total_norm
-            for p in params:
-                if p.grad is not None:
-                    p.grad *= scale
-
-        return total_norm
-
-    # Real educational text corpus for training data
-    TRAINING_CORPUS = [
-        "The transformer architecture was introduced in the paper Attention Is All You Need in 2017.",
-        "Language models predict the next token in a sequence based on the context of preceding tokens.",
-        "Self-attention allows each position in the sequence to attend to all other positions.",
-        "The key, query, and value projections are fundamental components of the attention mechanism.",
-        "Positional encoding provides information about the relative or absolute position of tokens.",
-        "The feed-forward network in each transformer layer applies two linear transformations.",
-        "Layer normalization stabilizes training by normalizing activations across the feature dimension.",
-        "Dropout is a regularization technique that randomly sets a fraction of inputs to zero.",
-        "The softmax function converts logits into a probability distribution over possible tokens.",
-        "Cross-entropy loss measures the difference between predicted and actual token distributions.",
-        "Gradient descent optimizes model parameters by following the negative gradient of the loss.",
-        "Learning rate warmup gradually increases the learning rate at the beginning of training.",
-        "Weight decay adds a penalty term to prevent model weights from growing too large.",
-        "Residual connections allow gradients to flow directly through the network without degradation.",
-        "Multi-head attention projects queries, keys, and values into multiple subspaces.",
-        "The vocabulary size determines the number of unique tokens the model can process.",
-        "Tokenization splits text into smaller units that the model can understand and process.",
-        "Embedding layers convert discrete token indices into continuous vector representations.",
-        "The model dimension determines the size of the hidden representations throughout the network.",
-        "Beam search explores multiple generation paths to find higher probability sequences.",
-        "Temperature scaling controls the randomness of the sampling distribution during generation.",
-        "Top-k sampling restricts generation to the k most probable next tokens at each step.",
-        "Nucleus sampling selects from the smallest set of tokens whose cumulative probability exceeds p.",
-        "Perplexity measures how well a probability model predicts a sample of text data.",
-        "BLEU score evaluates the quality of machine-generated text against reference translations.",
-        "ROUGE metrics assess the quality of summaries by comparing overlap with reference summaries.",
-        "Fine-tuning adapts a pretrained model to a specific downstream task using labeled data.",
-        "Transfer learning leverages knowledge learned on one task to improve performance on another.",
-        "Data augmentation increases training set diversity by applying transformations to existing data.",
-        "Overfitting occurs when a model learns training data noise rather than underlying patterns.",
-        "Regularization techniques help prevent overfitting by constraining the model complexity.",
-        "The attention mask prevents the model from attending to future tokens during training.",
-        "Causal language modeling trains the model to predict each token given only previous tokens.",
-        "The encoder processes input sequences while the decoder generates output sequences.",
-        "Autoregressive generation produces tokens one at a time conditioned on previous outputs.",
-        "The context window determines the maximum number of tokens the model can process at once.",
-        "Gradient clipping prevents exploding gradients by limiting the gradient magnitude.",
-        "Mixed precision training uses both float16 and float32 to reduce memory and increase speed.",
-        "Reinforcement learning from human feedback aligns model outputs with human preferences.",
-        "Low-rank adaptation reduces the number of trainable parameters by decomposing weight updates.",
-    ]
-
-    @staticmethod
-    def generate_sample_data(
-        vocab_size: int = 256,
-        num_samples: int = 1000,
-        seq_len: int = 64,
-    ) -> np.ndarray:
-        """Generate training data by encoding real English text into token sequences."""
-        corpus_text = " ".join(TrainingEngine.TRAINING_CORPUS)
-        encoded = np.array([ord(c) % vocab_size for c in corpus_text], dtype=np.int64)
-        corpus_len = len(encoded)
-
-        data = np.zeros((num_samples, seq_len), dtype=np.int64)
-        for i in range(num_samples):
-            start = (i * 37) % max(corpus_len - seq_len, 1)
-            for j in range(seq_len):
-                data[i, j] = encoded[(start + j) % corpus_len]
-
-        return data
+    return {
+        "model_preset": preset,
+        "training_results": results,
+        "summary": trainer.get_training_summary(),
+        "device_info": get_device_info(),
+    }

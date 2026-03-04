@@ -1,10 +1,11 @@
 """
-Model Management API
+Model Management API — PyTorch GPU-accelerated Models
 
-Create, configure, inspect, and manage GPT model instances.
+Create, configure, inspect, and manage GPT model instances on GPU.
 """
 
 from typing import Optional
+import uuid
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -13,12 +14,12 @@ from app.core.model import GPTConfig, MicroGPT, PRESET_CONFIGS
 
 router = APIRouter()
 
-# In-memory model store (would be DB-backed in production)
+# In-memory model store
 _models: dict = {}
 
 
 class CreateModelRequest(BaseModel):
-    preset: Optional[str] = Field(None, description="Preset name: nano, micro, mini, small, medium, large")
+    preset: Optional[str] = Field(None, description="Preset name: nano, micro, small, medium")
     vocab_size: int = 256
     d_model: int = 128
     num_heads: int = 4
@@ -27,12 +28,8 @@ class CreateModelRequest(BaseModel):
     max_seq_len: int = 256
     dropout: float = 0.1
     norm_type: str = "rmsnorm"
-    norm_placement: str = "pre"
     activation: str = "gelu"
-    attention_type: str = "full"
-    positional_encoding: str = "sinusoidal"
     use_bias: bool = True
-    tie_weights: bool = True
 
 
 class ModelInfoResponse(BaseModel):
@@ -44,7 +41,7 @@ class ModelInfoResponse(BaseModel):
 
 @router.post("", response_model=ModelInfoResponse)
 async def create_model(request: CreateModelRequest):
-    """Create a new GPT model instance."""
+    """Create a new GPT model instance on GPU."""
     if request.preset and request.preset in PRESET_CONFIGS:
         config = PRESET_CONFIGS[request.preset]
     else:
@@ -57,23 +54,28 @@ async def create_model(request: CreateModelRequest):
             max_seq_len=request.max_seq_len,
             dropout=request.dropout,
             norm_type=request.norm_type,
-            norm_placement=request.norm_placement,
             activation=request.activation,
-            attention_type=request.attention_type,
-            positional_encoding=request.positional_encoding,
             use_bias=request.use_bias,
-            tie_weights=request.tie_weights,
         )
 
-    import uuid
     model_id = str(uuid.uuid4())
     model = MicroGPT(config)
     _models[model_id] = model
 
+    param_info = model.parameters_count()
+
     return ModelInfoResponse(
         model_id=model_id,
-        config=model.get_config_summary(),
-        num_parameters=model.num_parameters(),
+        config={
+            "d_model": config.d_model,
+            "num_heads": config.num_heads,
+            "num_layers": config.num_layers,
+            "d_ff": config.d_ff,
+            "vocab_size": config.vocab_size,
+            "max_seq_len": config.max_seq_len,
+            "device": str(model.device),
+        },
+        num_parameters=param_info["total"],
         status="created",
     )
 
@@ -84,10 +86,16 @@ async def get_model(model_id: str):
     if model_id not in _models:
         raise HTTPException(status_code=404, detail="Model not found")
     model = _models[model_id]
+    param_info = model.parameters_count()
     return ModelInfoResponse(
         model_id=model_id,
-        config=model.get_config_summary(),
-        num_parameters=model.num_parameters(),
+        config={
+            "d_model": model.config.d_model,
+            "num_heads": model.config.num_heads,
+            "num_layers": model.config.num_layers,
+            "device": str(model.device),
+        },
+        num_parameters=param_info["total"],
         status="ready",
     )
 
@@ -98,9 +106,10 @@ async def list_models():
     return [
         {
             "model_id": mid,
-            "num_parameters": m.num_parameters(),
+            "num_parameters": m.parameters_count()["total"],
             "d_model": m.config.d_model,
             "num_layers": m.config.num_layers,
+            "device": str(m.device),
         }
         for mid, m in _models.items()
     ]

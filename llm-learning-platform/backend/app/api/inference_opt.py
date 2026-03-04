@@ -47,7 +47,6 @@ async def analyze_kv_cache(req: KVCacheSimRequest):
         "config": {"num_layers": req.num_layers, "num_heads": req.num_heads, "head_dim": req.head_dim},
         "steps": steps,
         "final_cache_mb": steps[-1]["cache_mb"] if steps else 0,
-        "max_speedup": steps[-1]["speedup"] if steps else 1,
     }
 
 

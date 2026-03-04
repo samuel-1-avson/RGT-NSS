@@ -2,6 +2,7 @@
 Application configuration using pydantic-settings.
 """
 
+import secrets
 from functools import lru_cache
 from typing import List
 
@@ -30,7 +31,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # ─── Security ────────────────────────────────────────────
-    secret_key: str = "change-me-in-production-use-a-long-random-string"
+    # Auto-generated per startup if SECRET_KEY env var is not set.
+    # In production, always set SECRET_KEY explicitly.
+    secret_key: str = secrets.token_urlsafe(64)
     access_token_expire_minutes: int = 1440  # 24 hours
 
     # ─── GPU ─────────────────────────────────────────────────

@@ -1,9 +1,10 @@
 # ──────────────────────────────────────────────────────────────
-# Interactive LLM Learning Platform - Backend
+# Interactive LLM Learning Platform - Backend (CPU)
 # Multi-stage build for production-optimized image
+# PyTorch CPU build with all ML engines
 # ──────────────────────────────────────────────────────────────
 
-FROM python:3.11-slim AS base
+FROM python:3.12-slim AS base
 
 WORKDIR /app
 
@@ -17,6 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM base AS deps
 
 COPY requirements.txt .
+
+# Install PyTorch CPU-only build first (smaller image, no CUDA libs)
+RUN pip install --no-cache-dir \
+    torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining dependencies (skip torch since already installed)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ─── Production stage ───────────────────────────────────────
@@ -27,7 +34,7 @@ RUN groupadd --system appuser && \
     useradd --system --gid appuser --create-home appuser
 
 # Copy installed packages from deps stage
-COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=deps /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=deps /usr/local/bin /usr/local/bin
 
 # Application code
@@ -37,11 +44,18 @@ COPY --chown=appuser:appuser . .
 RUN mkdir -p checkpoints data logs && \
     chown -R appuser:appuser checkpoints data logs
 
+# PyTorch environment
+ENV PYTORCH_NO_CUDA_MEMORY_CACHING=1
+ENV OMP_NUM_THREADS=4
+ENV MKL_NUM_THREADS=4
+
 USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["uvicorn", "app.main:socket_app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Use single worker — PyTorch models are not fork-safe
+# Use --workers 1 to avoid issues with model state across processes
+CMD ["uvicorn", "app.main:socket_app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

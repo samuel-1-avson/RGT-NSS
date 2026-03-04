@@ -5,7 +5,7 @@ Manage learning modules / labs and track user progress through them.
 """
 
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -27,6 +27,42 @@ class ModuleCategory(str, Enum):
     ADVANCED = "advanced"
     FRONTIER = "frontier"
 
+
+# ─── Response Models ──────────────────────────────────────────
+
+class ModuleItem(BaseModel):
+    id: str
+    title: str
+    description: str
+    category: str
+    difficulty: str
+    xp_reward: int
+    estimated_minutes: int
+    prerequisites: List[str]
+    topics: List[str]
+    order: int
+
+
+class ModuleListResponse(BaseModel):
+    modules: List[ModuleItem]
+    total: int
+
+
+class PrerequisiteItem(BaseModel):
+    id: str
+    title: str
+
+
+class PrerequisiteResponse(BaseModel):
+    module_id: str
+    prerequisites: List[PrerequisiteItem]
+
+
+class CategoriesResponse(BaseModel):
+    categories: Dict[str, int]
+
+
+# ─── Module Data ──────────────────────────────────────────────
 
 _MODULES = [
     {
@@ -176,7 +212,9 @@ _MODULES = [
 ]
 
 
-@router.get("")
+# ─── Endpoints ────────────────────────────────────────────────
+
+@router.get("", response_model=ModuleListResponse)
 async def list_modules(
     category: Optional[str] = None,
     difficulty: Optional[str] = None,
@@ -190,7 +228,7 @@ async def list_modules(
     return {"modules": modules, "total": len(modules)}
 
 
-@router.get("/{module_id}")
+@router.get("/{module_id}", response_model=ModuleItem)
 async def get_module(module_id: str):
     """Get detailed information about a specific module."""
     module = next((m for m in _MODULES if m["id"] == module_id), None)
@@ -199,7 +237,7 @@ async def get_module(module_id: str):
     return module
 
 
-@router.get("/{module_id}/prerequisites")
+@router.get("/{module_id}/prerequisites", response_model=PrerequisiteResponse)
 async def get_prerequisites(module_id: str):
     """Get prerequisite chain for a module."""
     module = next((m for m in _MODULES if m["id"] == module_id), None)
@@ -222,7 +260,7 @@ async def get_prerequisites(module_id: str):
     return {"module_id": module_id, "prerequisites": prereqs}
 
 
-@router.get("/categories/list")
+@router.get("/categories/list", response_model=CategoriesResponse)
 async def list_categories():
     """List module categories with counts."""
     counts = {}

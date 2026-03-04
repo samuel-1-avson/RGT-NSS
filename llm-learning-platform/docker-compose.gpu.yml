@@ -1,4 +1,17 @@
+# ──────────────────────────────────────────────────────────────
+# LLM Learning Platform — Docker Compose (GPU / NVIDIA CUDA)
+#
+# Usage:
+#   docker compose -f docker-compose.gpu.yml up --build
+#
+# Prerequisites:
+#   - NVIDIA GPU with drivers installed
+#   - nvidia-container-toolkit installed
+#   - Docker configured with nvidia runtime
+# ──────────────────────────────────────────────────────────────
+
 services:
+  # ─── Backend API (PyTorch + CUDA GPU) ───────────────────────
   backend:
     build:
       context: ./backend
@@ -6,31 +19,42 @@ services:
     container_name: llm-platform-backend-gpu
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://llmuser:llmpass@postgres:5432/llmplatform
       - REDIS_URL=redis://redis:6379/0
-      - ENVIRONMENT=development
-      - LOG_LEVEL=info
-      - CORS_ORIGINS=http://localhost:3000
-      - USE_GPU=true
-      - CUDA_VISIBLE_DEVICES=0
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","http://localhost:8000"]}
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
     volumes:
       - ./backend:/app
       - model-checkpoints:/app/checkpoints
+    # Shared memory — critical for PyTorch CUDA operations
+    shm_size: '4gb'
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # NVIDIA GPU access
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+              count: all
+              capabilities: [ gpu ]
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
 
+  # ─── Frontend ──────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
@@ -39,12 +63,13 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
     depends_on:
       - backend
     restart: unless-stopped
 
+  # ─── PostgreSQL ────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: llm-platform-postgres
@@ -57,12 +82,13 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U llmuser -d llmplatform"]
+      test: [ "CMD-SHELL", "pg_isready -U llmuser -d llmplatform" ]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
+  # ─── Redis ─────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: llm-platform-redis
@@ -71,11 +97,23 @@ services:
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+
+  # ─── Traefik (Reverse Proxy / Load Balancer) ───────────────
+  traefik:
+    image: traefik:v3.0
+    container_name: llm-platform-traefik
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
     restart: unless-stopped
 
 volumes:

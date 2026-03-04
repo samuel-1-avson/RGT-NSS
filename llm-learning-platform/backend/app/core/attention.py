@@ -1,346 +1,210 @@
 """
-Attention Mechanism System
+Attention Engine — PyTorch GPU-accelerated Multi-Head Attention
 
-Full, local, sparse, and linear attention — all with step-by-step
-visualization support for educational transparency.
+Real scaled dot-product attention with causal masking,
+multiple attention variants, and step-by-step visualization support.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import math
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-from app.core.tensor import Tensor
+from app.core.device import get_device
 
 
-class AttentionType(str, Enum):
+class AttentionType(Enum):
     FULL = "full"
     LOCAL = "local"
     SPARSE = "sparse"
     LINEAR = "linear"
 
 
-@dataclass
-class AttentionStepResult:
-    output: np.ndarray
-    attention_weights: np.ndarray
-    intermediates: Dict[str, np.ndarray] = field(default_factory=dict)
-
-
-@dataclass
-class AttentionPatternAnalysis:
-    patterns: Dict[str, dict]
-
-
-# ─── Utility Functions ───────────────────────────────────────
-
-def softmax(x: np.ndarray, axis: int = -1) -> np.ndarray:
-    shifted = x - x.max(axis=axis, keepdims=True)
-    exp_x = np.exp(shifted)
-    return exp_x / exp_x.sum(axis=axis, keepdims=True)
-
-
-# ─── Multi-Head Attention ────────────────────────────────────
-
-class MultiHeadAttention:
+class MultiHeadAttention(nn.Module):
     """
-    Complete multi-head attention with all variants and
-    step-by-step visualization support.
+    Multi-head attention as a real nn.Module with GPU acceleration.
+
+    Supports full, local-window, sparse, and linear attention variants.
+    Stores attention weights for visualization.
     """
 
     def __init__(
         self,
-        d_model: int,
-        num_heads: int,
+        d_model: int = 128,
+        num_heads: int = 4,
+        dropout: float = 0.1,
         attention_type: AttentionType = AttentionType.FULL,
-        dropout: float = 0.0,
-        window_size: int = 64,
+        local_window: int = 32,
+        use_bias: bool = True,
     ):
+        super().__init__()
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
 
         self.d_model = d_model
         self.num_heads = num_heads
-        self.d_head = d_model // num_heads
+        self.head_dim = d_model // num_heads
         self.attention_type = attention_type
-        self.dropout = dropout
-        self.window_size = window_size
+        self.local_window = local_window
 
-        scale = np.sqrt(2.0 / d_model).astype(np.float32)
-        self.W_q = Tensor(np.random.randn(d_model, d_model).astype(np.float32) * scale, requires_grad=True)
-        self.W_k = Tensor(np.random.randn(d_model, d_model).astype(np.float32) * scale, requires_grad=True)
-        self.W_v = Tensor(np.random.randn(d_model, d_model).astype(np.float32) * scale, requires_grad=True)
-        self.W_o = Tensor(np.random.randn(d_model, d_model).astype(np.float32) * scale, requires_grad=True)
+        self.q_proj = nn.Linear(d_model, d_model, bias=use_bias)
+        self.k_proj = nn.Linear(d_model, d_model, bias=use_bias)
+        self.v_proj = nn.Linear(d_model, d_model, bias=use_bias)
+        self.out_proj = nn.Linear(d_model, d_model, bias=use_bias)
 
-        self.b_q = Tensor(np.zeros(d_model, dtype=np.float32), requires_grad=True)
-        self.b_k = Tensor(np.zeros(d_model, dtype=np.float32), requires_grad=True)
-        self.b_v = Tensor(np.zeros(d_model, dtype=np.float32), requires_grad=True)
-        self.b_o = Tensor(np.zeros(d_model, dtype=np.float32), requires_grad=True)
+        self.dropout = nn.Dropout(dropout)
+        self.attn_dropout = nn.Dropout(dropout)
 
-    def parameters(self) -> List[Tensor]:
-        return [
-            self.W_q, self.W_k, self.W_v, self.W_o,
-            self.b_q, self.b_k, self.b_v, self.b_o,
-        ]
+        self._last_attention_weights: Optional[torch.Tensor] = None
 
     def forward(
         self,
-        x: np.ndarray,
-        mask: Optional[np.ndarray] = None,
-        kv_cache: Optional[Tuple[np.ndarray, np.ndarray]] = None,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        x: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+        store_weights: bool = False,
+    ) -> torch.Tensor:
         """
-        Forward pass returning (output, attention_weights).
+        Args:
+            x: (batch, seq_len, d_model)
+            mask: (seq_len, seq_len) causal mask
+            store_weights: save attention weights for visualization
         """
-        result = self.compute_step_by_step(x, mask, kv_cache, store_intermediates=False)
-        return result.output, result.attention_weights
+        B, S, D = x.shape
 
-    def compute_step_by_step(
-        self,
-        x: np.ndarray,
-        mask: Optional[np.ndarray] = None,
-        kv_cache: Optional[Tuple[np.ndarray, np.ndarray]] = None,
-        store_intermediates: bool = True,
-    ) -> AttentionStepResult:
-        """Compute attention with full step-by-step data for visualization."""
-        intermediates: Dict[str, np.ndarray] = {}
+        Q = self.q_proj(x).view(B, S, self.num_heads, self.head_dim).transpose(1, 2)
+        K = self.k_proj(x).view(B, S, self.num_heads, self.head_dim).transpose(1, 2)
+        V = self.v_proj(x).view(B, S, self.num_heads, self.head_dim).transpose(1, 2)
 
-        if x.ndim == 2:
-            x = x[np.newaxis, :, :]  # add batch dim
+        # Scaled dot-product attention
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
-        batch_size, seq_len, _ = x.shape
-
-        # Step 1: Linear projections
-        Q = x @ self.W_q.data + self.b_q.data
-        K = x @ self.W_k.data + self.b_k.data
-        V = x @ self.W_v.data + self.b_v.data
-
-        if store_intermediates:
-            intermediates["Q_projected"] = Q.copy()
-            intermediates["K_projected"] = K.copy()
-            intermediates["V_projected"] = V.copy()
-
-        # Use KV cache if provided
-        if kv_cache is not None:
-            K = np.concatenate([kv_cache[0], K], axis=1)
-            V = np.concatenate([kv_cache[1], V], axis=1)
-
-        kv_len = K.shape[1]
-
-        # Step 2: Reshape for multi-head
-        Q = Q.reshape(batch_size, seq_len, self.num_heads, self.d_head).transpose(0, 2, 1, 3)
-        K = K.reshape(batch_size, kv_len, self.num_heads, self.d_head).transpose(0, 2, 1, 3)
-        V = V.reshape(batch_size, kv_len, self.num_heads, self.d_head).transpose(0, 2, 1, 3)
-
-        if store_intermediates:
-            intermediates["Q_heads"] = Q.copy()
-            intermediates["K_heads"] = K.copy()
-            intermediates["V_heads"] = V.copy()
-
-        # Step 3: Compute attention
-        if self.attention_type == AttentionType.FULL:
-            attn_out, attn_weights = self._full_attention(Q, K, V, mask)
-        elif self.attention_type == AttentionType.LOCAL:
-            attn_out, attn_weights = self._local_attention(Q, K, V)
+        # Apply attention type masking
+        if self.attention_type == AttentionType.LOCAL:
+            local_mask = self._create_local_mask(S).to(x.device)
+            scores = scores.masked_fill(local_mask == 0, float("-inf"))
         elif self.attention_type == AttentionType.SPARSE:
-            attn_out, attn_weights = self._sparse_attention(Q, K, V, mask)
-        elif self.attention_type == AttentionType.LINEAR:
-            attn_out, attn_weights = self._linear_attention(Q, K, V)
-        else:
-            attn_out, attn_weights = self._full_attention(Q, K, V, mask)
+            sparse_mask = self._create_sparse_mask(S).to(x.device)
+            scores = scores.masked_fill(sparse_mask == 0, float("-inf"))
 
-        if store_intermediates:
-            intermediates["attention_weights"] = attn_weights.copy()
-
-        # Step 4: Merge heads
-        attn_out = attn_out.transpose(0, 2, 1, 3).reshape(batch_size, seq_len, self.d_model)
-
-        # Step 5: Output projection
-        output = attn_out @ self.W_o.data + self.b_o.data
-
-        if store_intermediates:
-            intermediates["final_output"] = output.copy()
-
-        return AttentionStepResult(
-            output=output,
-            attention_weights=attn_weights,
-            intermediates=intermediates,
-        )
-
-    # ─── Attention Variants ──────────────────────────────────
-
-    def _full_attention(
-        self,
-        Q: np.ndarray,
-        K: np.ndarray,
-        V: np.ndarray,
-        mask: Optional[np.ndarray] = None,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Standard scaled dot-product attention."""
-        scores = Q @ K.transpose(0, 1, 3, 2) / np.sqrt(self.d_head)
-
+        # Causal mask
         if mask is not None:
-            scores = scores + mask
+            scores = scores.masked_fill(mask.unsqueeze(0).unsqueeze(0) == 0, float("-inf"))
 
-        attn_weights = softmax(scores, axis=-1)
-        output = attn_weights @ V
-        return output, attn_weights
-
-    def _local_attention(
-        self,
-        Q: np.ndarray,
-        K: np.ndarray,
-        V: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Local windowed attention for long sequences."""
-        batch_size, num_heads, seq_len, d_head = Q.shape
-        kv_len = K.shape[2]
-
-        output = np.zeros_like(Q)
-        attn_weights = np.zeros((batch_size, num_heads, seq_len, kv_len), dtype=np.float32)
-
-        half_w = self.window_size // 2
-        for i in range(seq_len):
-            start = max(0, i - half_w)
-            end = min(kv_len, i + half_w + 1)
-
-            q_i = Q[:, :, i : i + 1, :]
-            k_win = K[:, :, start:end, :]
-            v_win = V[:, :, start:end, :]
-
-            scores = q_i @ k_win.transpose(0, 1, 3, 2) / np.sqrt(self.d_head)
-            local_attn = softmax(scores, axis=-1)
-
-            output[:, :, i : i + 1, :] = local_attn @ v_win
-            attn_weights[:, :, i : i + 1, start:end] = local_attn
-
-        return output, attn_weights
-
-    def _sparse_attention(
-        self,
-        Q: np.ndarray,
-        K: np.ndarray,
-        V: np.ndarray,
-        mask: Optional[np.ndarray] = None,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Sparse attention with local + global tokens (Longformer-style)."""
-        batch_size, num_heads, seq_len, d_head = Q.shape
-        kv_len = K.shape[2]
-
-        # Create sparse mask: local window + first/last token global
-        sparse_mask = np.full((seq_len, kv_len), -1e9, dtype=np.float32)
-        half_w = self.window_size // 2
-        for i in range(seq_len):
-            start = max(0, i - half_w)
-            end = min(kv_len, i + half_w + 1)
-            sparse_mask[i, start:end] = 0.0
-            sparse_mask[i, 0] = 0.0  # first token is global
-            if kv_len > 1:
-                sparse_mask[i, -1] = 0.0  # last token is global
-
-        scores = Q @ K.transpose(0, 1, 3, 2) / np.sqrt(self.d_head)
-        scores = scores + sparse_mask[np.newaxis, np.newaxis, :, :]
-
-        if mask is not None:
-            scores = scores + mask
-
-        attn_weights = softmax(scores, axis=-1)
-        output = attn_weights @ V
-        return output, attn_weights
-
-    def _linear_attention(
-        self,
-        Q: np.ndarray,
-        K: np.ndarray,
-        V: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Linear attention approximation — O(n) complexity."""
-        # Feature map: ELU + 1
-        Q_prime = np.maximum(Q, 0) + 1
-        K_prime = np.maximum(K, 0) + 1
-
-        # KV = K^T V, then Q @ KV
-        KV = K_prime.transpose(0, 1, 3, 2) @ V  # (batch, heads, d_head, d_head)
-        numerator = Q_prime @ KV
-        denominator = Q_prime @ K_prime.transpose(0, 1, 3, 2).sum(axis=-1, keepdims=True)
-
-        output = numerator / (denominator + 1e-8)
-
-        # Approximate weights for visualization
-        attn_weights = softmax(Q @ K.transpose(0, 1, 3, 2) / np.sqrt(self.d_head), axis=-1)
-
-        return output, attn_weights
-
-    # ─── Analysis ────────────────────────────────────────────
-
-    def analyze_attention_patterns(
-        self,
-        attention_weights: np.ndarray,
-        tokens: Optional[List[str]] = None,
-    ) -> AttentionPatternAnalysis:
-        """Analyze attention patterns for interpretability."""
-        if attention_weights.ndim == 3:
-            attention_weights = attention_weights[np.newaxis, :]
-
-        batch_size, num_heads, seq_len, _ = attention_weights.shape
-        patterns: Dict[str, dict] = {}
-
-        for head in range(num_heads):
-            head_attn = attention_weights[0, head]
-
-            # Diagonal (local) focus
-            diag_score = float(np.mean(np.diag(head_attn)))
-
-            # Vertical (positional) focus
-            col_means = head_attn.mean(axis=0)
-            vertical_score = float(np.max(col_means))
-
-            # Entropy (uniformity)
-            entropy = float(
-                -np.sum(head_attn * np.log(head_attn + 1e-10), axis=-1).mean()
-            )
-
-            # Sparsity
-            sparsity = float(np.mean(np.sum(head_attn > 0.1, axis=-1)))
-
-            pattern_type = self._classify_pattern(diag_score, vertical_score, entropy)
-
-            patterns[f"head_{head}"] = {
-                "diagonal_focus": diag_score,
-                "vertical_focus": vertical_score,
-                "entropy": entropy,
-                "sparsity": sparsity,
-                "pattern_type": pattern_type,
-            }
-
-        return AttentionPatternAnalysis(patterns=patterns)
-
-    @staticmethod
-    def _classify_pattern(
-        diagonal: float, vertical: float, entropy: float
-    ) -> str:
-        if diagonal > 0.3:
-            return "local/diagonal"
-        elif vertical > 0.5:
-            return "vertical/position"
-        elif entropy < 1.0:
-            return "sparse/concentrated"
+        if self.attention_type == AttentionType.LINEAR:
+            # Linear attention: kernel approximation (ELU + 1)
+            Q_prime = F.elu(Q) + 1
+            K_prime = F.elu(K) + 1
+            KV = torch.matmul(K_prime.transpose(-2, -1), V)
+            output = torch.matmul(Q_prime, KV)
+            denom = torch.matmul(Q_prime, K_prime.transpose(-2, -1).sum(dim=-1, keepdim=True))
+            output = output / (denom + 1e-6)
+            attn_weights = None
         else:
-            return "distributed/global"
+            attn_weights = F.softmax(scores, dim=-1)
+            attn_weights = self.attn_dropout(attn_weights)
+            output = torch.matmul(attn_weights, V)
 
-    @staticmethod
-    def create_causal_mask(seq_len: int) -> np.ndarray:
-        """Create causal (autoregressive) attention mask."""
-        mask = np.triu(np.ones((seq_len, seq_len), dtype=np.float32), k=1)
-        return (mask * -1e9).astype(np.float32)
+        if store_weights and attn_weights is not None:
+            self._last_attention_weights = attn_weights.detach()
 
-    @staticmethod
-    def create_padding_mask(lengths: np.ndarray, max_len: int) -> np.ndarray:
-        """Create padding mask from sequence lengths."""
-        batch_size = len(lengths)
-        mask = np.zeros((batch_size, 1, 1, max_len), dtype=np.float32)
-        for i, length in enumerate(lengths):
-            mask[i, 0, 0, int(length) :] = -1e9
+        # Reshape and project
+        output = output.transpose(1, 2).contiguous().view(B, S, D)
+        output = self.out_proj(output)
+        return self.dropout(output)
+
+    def _create_local_mask(self, seq_len: int) -> torch.Tensor:
+        mask = torch.zeros(seq_len, seq_len)
+        for i in range(seq_len):
+            start = max(0, i - self.local_window)
+            end = min(seq_len, i + self.local_window + 1)
+            mask[i, start:end] = 1
         return mask
+
+    def _create_sparse_mask(self, seq_len: int, stride: int = 4) -> torch.Tensor:
+        mask = torch.zeros(seq_len, seq_len)
+        for i in range(seq_len):
+            # Local window
+            start = max(0, i - self.local_window)
+            end = min(seq_len, i + 1)
+            mask[i, start:end] = 1
+            # Strided global attention
+            for j in range(0, seq_len, stride):
+                if j <= i:
+                    mask[i, j] = 1
+        return mask
+
+    @staticmethod
+    def create_causal_mask(seq_len: int) -> torch.Tensor:
+        """Create a causal (autoregressive) attention mask."""
+        return torch.tril(torch.ones(seq_len, seq_len, device=get_device()))
+
+    def get_attention_weights(self) -> Optional[np.ndarray]:
+        """Return last stored attention weights as numpy array."""
+        if self._last_attention_weights is not None:
+            return self._last_attention_weights.cpu().numpy()
+        return None
+
+    def forward_step_by_step(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Dict:
+        """Run attention with full step-by-step intermediate outputs for visualization."""
+        B, S, D = x.shape
+
+        Q = self.q_proj(x).view(B, S, self.num_heads, self.head_dim).transpose(1, 2)
+        K = self.k_proj(x).view(B, S, self.num_heads, self.head_dim).transpose(1, 2)
+        V = self.v_proj(x).view(B, S, self.num_heads, self.head_dim).transpose(1, 2)
+
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.head_dim)
+
+        if mask is not None:
+            scores = scores.masked_fill(mask.unsqueeze(0).unsqueeze(0) == 0, float("-inf"))
+
+        attn_weights = F.softmax(scores, dim=-1)
+        output = torch.matmul(attn_weights, V)
+        output = output.transpose(1, 2).contiguous().view(B, S, D)
+        output = self.out_proj(output)
+
+        return {
+            "queries": Q[0].detach().cpu().numpy().tolist(),
+            "keys": K[0].detach().cpu().numpy().tolist(),
+            "values": V[0].detach().cpu().numpy().tolist(),
+            "scores": scores[0].detach().cpu().numpy().tolist(),
+            "attention_weights": attn_weights[0].detach().cpu().numpy().tolist(),
+            "output": output[0].detach().cpu().numpy().tolist(),
+            "num_heads": self.num_heads,
+            "head_dim": self.head_dim,
+            "seq_len": S,
+        }
+
+    def analyze_attention_patterns(self, x: torch.Tensor) -> Dict:
+        """Analyze attention patterns across all heads."""
+        mask = self.create_causal_mask(x.size(1))
+        self.forward(x, mask=mask, store_weights=True)
+        weights = self._last_attention_weights  # (B, H, S, S)
+
+        if weights is None:
+            return {"error": "No attention weights available"}
+
+        w = weights[0]  # First batch
+        patterns = []
+        for h in range(self.num_heads):
+            head_w = w[h]
+            entropy = -(head_w * (head_w + 1e-8).log()).sum(dim=-1).mean().item()
+            sparsity = (head_w < 0.01).float().mean().item()
+            patterns.append({
+                "head": h,
+                "avg_entropy": round(entropy, 4),
+                "sparsity": round(sparsity, 4),
+                "max_attention": round(head_w.max().item(), 4),
+            })
+
+        return {
+            "num_heads": self.num_heads,
+            "seq_len": x.size(1),
+            "attention_type": self.attention_type.value,
+            "head_patterns": patterns,
+            "attention_matrix": w.cpu().numpy().round(4).tolist(),
+        }

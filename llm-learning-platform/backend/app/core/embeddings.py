@@ -1,316 +1,173 @@
 """
-Embedding Layer System
+Embedding Engine — PyTorch GPU-accelerated Embeddings
 
-Token embeddings with multiple positional encoding strategies:
-sinusoidal, learned, RoPE, and ALiBi. Includes similarity search,
-analogy computation, and geometric analysis.
+Token embeddings + positional encodings (sinusoidal, learned, RoPE)
+as real nn.Module components with GPU placement.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
+import torch
+import torch.nn as nn
 
-from app.core.tensor import Tensor
-
-
-class InitStrategy(str, Enum):
-    XAVIER = "xavier"
-    HE = "he"
-    NORMAL = "normal"
+from app.core.device import get_device
 
 
-class PositionalEncodingType(str, Enum):
+class PositionalEncodingType(Enum):
     SINUSOIDAL = "sinusoidal"
     LEARNED = "learned"
     ROPE = "rope"
-    ALIBI = "alibi"
     NONE = "none"
 
 
-@dataclass
-class EmbeddingGeometry:
-    isotropy: float
-    effective_dimensionality: float
-    eigenvalue_spectrum: List[float]
-    mean_norm: float
-    std_norm: float
+class InitStrategy(Enum):
+    NORMAL = "normal"
+    XAVIER = "xavier"
+    KAIMING = "kaiming"
 
 
-@dataclass
-class SimilarityResult:
-    token_id: int
-    token: str
-    score: float
-
-
-# ─── Embedding Layer ─────────────────────────────────────────
-
-class EmbeddingLayer:
+class EmbeddingLayer(nn.Module):
     """
-    Comprehensive embedding layer with visualization and analysis
-    support. Implements token + positional embeddings.
+    Token + positional embedding layer with multiple encoding strategies.
+
+    Fully GPU-accelerated via PyTorch nn.Module.
     """
 
     def __init__(
         self,
-        vocab_size: int,
-        embedding_dim: int,
-        max_seq_len: int = 2048,
+        vocab_size: int = 256,
+        embedding_dim: int = 128,
+        max_seq_len: int = 256,
         init_strategy: InitStrategy = InitStrategy.NORMAL,
         positional_encoding: PositionalEncodingType = PositionalEncodingType.SINUSOIDAL,
         dropout: float = 0.1,
     ):
+        super().__init__()
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
         self.max_seq_len = max_seq_len
+        self.pos_type = positional_encoding
 
         # Token embeddings
-        self.weight = Tensor(
-            self._initialize_weights(vocab_size, embedding_dim, init_strategy),
-            requires_grad=True,
-        )
+        self.token_embedding = nn.Embedding(vocab_size, embedding_dim)
+        self._init_weights(init_strategy)
 
-        # Positional encodings
-        self.pos_type = positional_encoding
+        # Positional encoding
         if positional_encoding == PositionalEncodingType.SINUSOIDAL:
-            self.pos_emb = self._create_sinusoidal(max_seq_len, embedding_dim)
+            pe = self._build_sinusoidal(max_seq_len, embedding_dim)
+            self.register_buffer("pos_encoding", pe)
         elif positional_encoding == PositionalEncodingType.LEARNED:
-            self.pos_emb = Tensor(
-                np.random.randn(max_seq_len, embedding_dim).astype(np.float32) * 0.02,
-                requires_grad=True,
-            )
-        elif positional_encoding == PositionalEncodingType.ROPE:
-            self.rope_cos, self.rope_sin = self._precompute_rope(
-                max_seq_len, embedding_dim
-            )
-        # ALiBi doesn't add positional embeddings to tokens; it biases attention
+            self.pos_embedding = nn.Embedding(max_seq_len, embedding_dim)
+        # RoPE is applied in attention, not here
 
-        self.dropout_rate = dropout
+        self.dropout = nn.Dropout(dropout)
 
-        # Token mappings (set externally)
-        self.token_to_id: Dict[str, int] = {}
-        self.id_to_token: Dict[int, str] = {}
-
-    # ─── Initialization ──────────────────────────────────────
+    def _init_weights(self, strategy: InitStrategy):
+        if strategy == InitStrategy.NORMAL:
+            nn.init.normal_(self.token_embedding.weight, std=0.02)
+        elif strategy == InitStrategy.XAVIER:
+            nn.init.xavier_uniform_(self.token_embedding.weight)
+        elif strategy == InitStrategy.KAIMING:
+            nn.init.kaiming_uniform_(self.token_embedding.weight)
 
     @staticmethod
-    def _initialize_weights(
-        rows: int, cols: int, strategy: InitStrategy
-    ) -> np.ndarray:
-        if strategy == InitStrategy.XAVIER:
-            limit = np.sqrt(6.0 / (rows + cols))
-            return np.random.uniform(-limit, limit, (rows, cols)).astype(np.float32)
-        elif strategy == InitStrategy.HE:
-            std = np.sqrt(2.0 / rows)
-            return (np.random.randn(rows, cols) * std).astype(np.float32)
-        else:  # NORMAL
-            return (np.random.randn(rows, cols) * 0.02).astype(np.float32)
-
-    @staticmethod
-    def _create_sinusoidal(max_len: int, dim: int) -> np.ndarray:
-        """Create sinusoidal positional encodings (Vaswani et al.)."""
-        position = np.arange(max_len)[:, np.newaxis]
-        div_term = np.exp(
-            np.arange(0, dim, 2) * -(np.log(10000.0) / dim)
+    def _build_sinusoidal(max_len: int, d_model: int) -> torch.Tensor:
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2, dtype=torch.float32) * (-math.log(10000.0) / d_model)
         )
-        pe = np.zeros((max_len, dim), dtype=np.float32)
-        pe[:, 0::2] = np.sin(position * div_term)
-        pe[:, 1::2] = np.cos(position * div_term)
-        return pe
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term[: d_model // 2])
+        return pe.unsqueeze(0)  # (1, max_len, d_model)
 
-    @staticmethod
-    def _precompute_rope(
-        max_len: int, dim: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Precompute Rotary Position Embedding (RoPE) cache."""
-        inv_freq = 1.0 / (
-            10000 ** (np.arange(0, dim, 2, dtype=np.float32) / dim)
-        )
-        t = np.arange(max_len, dtype=np.float32)
-        freqs = np.outer(t, inv_freq)
-        emb = np.concatenate([freqs, freqs], axis=-1)
-        return np.cos(emb).astype(np.float32), np.sin(emb).astype(np.float32)
+    @property
+    def weight(self):
+        """Backward-compatible access to embedding weight."""
+        return self.token_embedding.weight
 
-    # ─── Forward Pass ────────────────────────────────────────
-
-    def forward(
-        self,
-        token_ids: np.ndarray,
-        positions: Optional[np.ndarray] = None,
-    ) -> Tensor:
+    def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
         """
-        Embed tokens and add positional information.
-
         Args:
             token_ids: (batch, seq_len) integer token IDs
-            positions: optional explicit position indices
         Returns:
-            Tensor of shape (batch, seq_len, embedding_dim)
+            (batch, seq_len, embedding_dim) embeddings
         """
-        # Token embeddings via lookup
-        token_emb = Tensor(
-            self.weight.data[token_ids],
-            requires_grad=True,
-        )
+        if isinstance(token_ids, np.ndarray):
+            token_ids = torch.from_numpy(token_ids).long().to(get_device())
 
-        seq_len = token_ids.shape[-1] if token_ids.ndim > 1 else token_ids.shape[0]
-        if positions is None:
-            positions = np.arange(seq_len)
+        x = self.token_embedding(token_ids)  # (B, S, D)
 
         if self.pos_type == PositionalEncodingType.SINUSOIDAL:
-            pe = self.pos_emb[positions]
-            return token_emb + Tensor(pe)
-
+            seq_len = x.size(1)
+            x = x + self.pos_encoding[:, :seq_len, :]
         elif self.pos_type == PositionalEncodingType.LEARNED:
-            pe = Tensor(self.pos_emb.data[positions], requires_grad=True)
-            return token_emb + pe
+            positions = torch.arange(x.size(1), device=x.device)
+            x = x + self.pos_embedding(positions)
 
-        elif self.pos_type == PositionalEncodingType.ROPE:
-            # RoPE is applied in the attention layer, not here
-            return token_emb
+        return self.dropout(x)
 
-        else:
-            return token_emb
+    def parameters_list(self) -> List:
+        """Return parameters for the custom Tensor-based API."""
+        return list(self.parameters())
 
-    def apply_rope(self, x: np.ndarray, seq_len: int) -> np.ndarray:
-        """Apply Rotary Position Embeddings to Q or K."""
-        cos = self.rope_cos[:seq_len]
-        sin = self.rope_sin[:seq_len]
+    def get_embedding_info(self) -> Dict:
+        return {
+            "vocab_size": self.vocab_size,
+            "embedding_dim": self.embedding_dim,
+            "max_seq_len": self.max_seq_len,
+            "positional_encoding": self.pos_type.value,
+            "total_params": sum(p.numel() for p in self.parameters()),
+            "device": str(next(self.parameters()).device),
+        }
 
-        # Split x into pairs and rotate
-        x1 = x[..., : x.shape[-1] // 2]
-        x2 = x[..., x.shape[-1] // 2 :]
-        cos_part = cos[:, : x1.shape[-1]]
-        sin_part = sin[:, : x1.shape[-1]]
+    def encode_tokens(self, token_ids: List[int]) -> Dict:
+        """Encode tokens and return embeddings with metadata."""
+        ids = torch.tensor([token_ids], dtype=torch.long, device=get_device())
+        with torch.no_grad():
+            embeddings = self.forward(ids)
+        return {
+            "token_ids": token_ids,
+            "embeddings": embeddings[0].cpu().numpy().tolist(),
+            "shape": list(embeddings.shape),
+            "embedding_dim": self.embedding_dim,
+        }
 
-        rotated = np.concatenate(
-            [x1 * cos_part - x2 * sin_part, x1 * sin_part + x2 * cos_part],
-            axis=-1,
-        )
-        return rotated.astype(np.float32)
+    def compute_similarity(self, id_a: int, id_b: int) -> Dict:
+        """Compute cosine similarity between two token embeddings."""
+        with torch.no_grad():
+            emb_a = self.token_embedding.weight[id_a]
+            emb_b = self.token_embedding.weight[id_b]
+            cos_sim = torch.nn.functional.cosine_similarity(
+                emb_a.unsqueeze(0), emb_b.unsqueeze(0)
+            ).item()
+        return {
+            "token_a": id_a,
+            "token_b": id_b,
+            "cosine_similarity": round(cos_sim, 6),
+            "embedding_dim": self.embedding_dim,
+        }
 
-    @staticmethod
-    def compute_alibi_bias(num_heads: int, max_len: int) -> np.ndarray:
-        """Compute ALiBi attention bias matrix."""
-        slopes = np.array(
-            [2 ** (-8 * i / num_heads) for i in range(1, num_heads + 1)],
-            dtype=np.float32,
-        )
-        positions = np.arange(max_len, dtype=np.float32)
-        # bias[h, i, j] = slope_h * (j - i)  (causal: only j <= i)
-        rel_pos = positions[None, :] - positions[:, None]  # (seq, seq)
-        bias = slopes[:, None, None] * rel_pos[None, :, :]  # (heads, seq, seq)
-        return bias
+    def compute_geometry(self, token_ids: List[int]) -> Dict:
+        """Compute pairwise distances and PCA projection."""
+        with torch.no_grad():
+            embeddings = self.token_embedding.weight[token_ids]  # (N, D)
+            # Pairwise cosine similarity
+            normed = torch.nn.functional.normalize(embeddings, dim=1)
+            sim_matrix = (normed @ normed.T).cpu().numpy()
+            # Simple 2D PCA projection
+            centered = embeddings - embeddings.mean(dim=0)
+            U, S, V = torch.svd(centered)
+            proj_2d = (centered @ V[:, :2]).cpu().numpy()
 
-    # ─── Parameters ──────────────────────────────────────────
-
-    def parameters(self) -> List[Tensor]:
-        params = [self.weight]
-        if self.pos_type == PositionalEncodingType.LEARNED:
-            params.append(self.pos_emb)
-        return params
-
-    # ─── Similarity & Analysis ───────────────────────────────
-
-    def get_similar_tokens(
-        self,
-        token_id: int,
-        k: int = 10,
-        metric: str = "cosine",
-    ) -> List[SimilarityResult]:
-        """Find k most similar tokens by embedding distance."""
-        token_emb = self.weight.data[token_id]
-
-        if metric == "cosine":
-            norms = np.linalg.norm(self.weight.data, axis=1, keepdims=True) + 1e-8
-            normed = self.weight.data / norms
-            token_normed = token_emb / (np.linalg.norm(token_emb) + 1e-8)
-            similarities = normed @ token_normed
-        else:
-            distances = np.linalg.norm(self.weight.data - token_emb, axis=1)
-            similarities = -distances
-
-        top_ids = np.argsort(similarities)[-(k + 1) : -1][::-1]
-        return [
-            SimilarityResult(
-                token_id=int(idx),
-                token=self.id_to_token.get(int(idx), f"<{idx}>"),
-                score=float(similarities[idx]),
-            )
-            for idx in top_ids
-        ]
-
-    def compute_analogy(
-        self,
-        a: int,
-        b: int,
-        c: int,
-        k: int = 5,
-    ) -> List[SimilarityResult]:
-        """Solve analogy: a is to b as c is to ?"""
-        result_vec = self.weight.data[b] - self.weight.data[a] + self.weight.data[c]
-        norms = np.linalg.norm(self.weight.data, axis=1, keepdims=True) + 1e-8
-        normed = self.weight.data / norms
-        result_normed = result_vec / (np.linalg.norm(result_vec) + 1e-8)
-        similarities = normed @ result_normed
-
-        exclude = {a, b, c}
-        top_ids = np.argsort(similarities)[::-1]
-        results = []
-        for idx in top_ids:
-            if int(idx) not in exclude:
-                results.append(
-                    SimilarityResult(
-                        token_id=int(idx),
-                        token=self.id_to_token.get(int(idx), f"<{idx}>"),
-                        score=float(similarities[idx]),
-                    )
-                )
-            if len(results) >= k:
-                break
-        return results
-
-    def analyze_geometry(self) -> EmbeddingGeometry:
-        """Analyze geometric properties of the embedding space."""
-        W = self.weight.data
-        centered = W - W.mean(axis=0)
-        cov = (centered.T @ centered) / len(W)
-        eigenvalues = np.linalg.eigvalsh(cov)
-        eigenvalues = np.sort(eigenvalues)[::-1]
-
-        isotropy = float(eigenvalues[0] / (eigenvalues[-1] + 1e-8))
-        effective_dim = float(
-            np.sum(eigenvalues) ** 2 / (np.sum(eigenvalues ** 2) + 1e-8)
-        )
-        norms = np.linalg.norm(W, axis=1)
-
-        return EmbeddingGeometry(
-            isotropy=isotropy,
-            effective_dimensionality=effective_dim,
-            eigenvalue_spectrum=eigenvalues[:50].tolist(),
-            mean_norm=float(norms.mean()),
-            std_norm=float(norms.std()),
-        )
-
-    def reduce_dimensions(
-        self,
-        method: str = "pca",
-        n_components: int = 2,
-    ) -> np.ndarray:
-        """Project embeddings to lower dimensions for visualization."""
-        W = self.weight.data
-        centered = W - W.mean(axis=0)
-
-        if method == "pca":
-            cov = (centered.T @ centered) / len(W)
-            eigenvalues, eigenvectors = np.linalg.eigh(cov)
-            idx = np.argsort(eigenvalues)[::-1][:n_components]
-            components = eigenvectors[:, idx]
-            return (centered @ components).astype(np.float32)
-        else:
-            # Fallback to PCA
-            return self.reduce_dimensions("pca", n_components)
+        return {
+            "token_ids": token_ids,
+            "similarity_matrix": sim_matrix.round(4).tolist(),
+            "pca_2d": proj_2d.round(4).tolist(),
+            "embedding_dim": self.embedding_dim,
+        }

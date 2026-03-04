@@ -1,35 +1,31 @@
 """
-GPT Model Architecture
+MicroGPT Model — PyTorch GPU-accelerated Causal Language Model
 
-Complete GPT-style decoder-only transformer built from scratch.
-Supports multiple model sizes from Nano to XL, with full training
-and inference capabilities.
+A real GPT-family language model built with PyTorch nn.Module.
+Supports GPU training, inference, generation with sampling strategies,
+and checkpoint save/load.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-from app.core.tensor import Tensor
-from app.core.embeddings import EmbeddingLayer, PositionalEncodingType, InitStrategy
-from app.core.attention import MultiHeadAttention, AttentionType
-from app.core.transformer import (
-    TransformerBlock,
-    NormType,
-    NormPlacement,
-    ActivationType,
-    RMSNorm,
-    LayerNorm,
-)
+from app.core.device import get_device
+from app.core.embeddings import EmbeddingLayer, PositionalEncodingType
+from app.core.transformer import TransformerBlock, NormType, NormPlacement, ActivationType, RMSNorm
+from app.core.attention import AttentionType
 
-
-# ─── Configuration ───────────────────────────────────────────
 
 @dataclass
 class GPTConfig:
+    """Configuration for MicroGPT model."""
     vocab_size: int = 256
     d_model: int = 128
     num_heads: int = 4
@@ -38,28 +34,19 @@ class GPTConfig:
     max_seq_len: int = 256
     dropout: float = 0.1
     norm_type: str = "rmsnorm"
-    norm_placement: str = "pre"
     activation: str = "gelu"
-    attention_type: str = "full"
-    positional_encoding: str = "sinusoidal"
     use_bias: bool = True
-    tie_weights: bool = True
 
     @property
     def num_parameters(self) -> int:
         """Estimate total parameter count."""
         emb = self.vocab_size * self.d_model
-        pos = self.max_seq_len * self.d_model
-        # Per block: attention (4 * d_model^2) + MLP (varies) + norms
-        if self.activation == "swiglu":
-            mlp_per_block = 3 * self.d_model * self.d_ff
-        else:
-            mlp_per_block = 2 * self.d_model * self.d_ff
-        attn_per_block = 4 * self.d_model ** 2
-        norm_per_block = 2 * self.d_model
-        block_total = (attn_per_block + mlp_per_block + norm_per_block) * self.num_layers
-        head = self.d_model * self.vocab_size if not self.tie_weights else 0
-        return emb + pos + block_total + head
+        pos_emb = self.max_seq_len * self.d_model
+        attn = 4 * self.d_model * self.d_model  # Q, K, V, O projections
+        mlp = 2 * self.d_model * self.d_ff
+        per_layer = attn + mlp + 2 * self.d_model  # + norms
+        lm_head = self.vocab_size * self.d_model
+        return emb + pos_emb + self.num_layers * per_layer + lm_head
 
 
 # ─── Preset Configurations ──────────────────────────────────
@@ -70,288 +57,248 @@ PRESET_CONFIGS = {
         d_ff=256, max_seq_len=128, dropout=0.1,
     ),
     "micro": GPTConfig(
-        vocab_size=512, d_model=128, num_heads=4, num_layers=4,
+        vocab_size=256, d_model=128, num_heads=4, num_layers=4,
         d_ff=512, max_seq_len=256, dropout=0.1,
     ),
-    "mini": GPTConfig(
-        vocab_size=1024, d_model=256, num_heads=8, num_layers=6,
+    "small": GPTConfig(
+        vocab_size=8192, d_model=256, num_heads=8, num_layers=6,
         d_ff=1024, max_seq_len=512, dropout=0.1,
     ),
-    "small": GPTConfig(
-        vocab_size=8192, d_model=512, num_heads=8, num_layers=8,
-        d_ff=2048, max_seq_len=1024, dropout=0.1,
-    ),
     "medium": GPTConfig(
-        vocab_size=16384, d_model=768, num_heads=12, num_layers=12,
-        d_ff=3072, max_seq_len=1024, dropout=0.1,
-    ),
-    "large": GPTConfig(
-        vocab_size=32000, d_model=1024, num_heads=16, num_layers=24,
-        d_ff=4096, max_seq_len=2048, dropout=0.1,
+        vocab_size=16384, d_model=512, num_heads=8, num_layers=8,
+        d_ff=2048, max_seq_len=1024, dropout=0.1,
     ),
 }
 
 
-# ─── GPT Model ───────────────────────────────────────────────
-
-class MicroGPT:
+class MicroGPT(nn.Module):
     """
-    Complete GPT-style decoder-only transformer.
+    GPU-accelerated GPT language model.
 
-    Built entirely from custom components for educational transparency.
-    Every layer is inspectable and visualizable.
+    A real transformer decoder with:
+    - Token + positional embeddings
+    - N stacked transformer blocks (attention + MLP + norms)
+    - Tied LM head (weight sharing with embeddings)
+    - GPU training and inference
     """
 
     def __init__(self, config: GPTConfig):
+        super().__init__()
         self.config = config
+        self.device = get_device()
 
-        # Token + positional embeddings
+        # Embedding layer
         self.embedding = EmbeddingLayer(
             vocab_size=config.vocab_size,
             embedding_dim=config.d_model,
             max_seq_len=config.max_seq_len,
-            init_strategy=InitStrategy.NORMAL,
-            positional_encoding=PositionalEncodingType(config.positional_encoding),
             dropout=config.dropout,
         )
 
         # Transformer blocks
-        self.blocks: List[TransformerBlock] = []
-        for _ in range(config.num_layers):
-            block = TransformerBlock(
+        norm_type = NormType.RMSNORM if config.norm_type == "rmsnorm" else NormType.LAYERNORM
+        activation = {
+            "gelu": ActivationType.GELU,
+            "relu": ActivationType.RELU,
+            "swiglu": ActivationType.SWIGLU,
+            "silu": ActivationType.SILU,
+        }.get(config.activation, ActivationType.GELU)
+
+        self.layers = nn.ModuleList([
+            TransformerBlock(
                 d_model=config.d_model,
                 num_heads=config.num_heads,
                 d_ff=config.d_ff,
-                norm_type=NormType(config.norm_type),
-                norm_placement=NormPlacement(config.norm_placement),
-                activation=ActivationType(config.activation),
-                attention_type=AttentionType(config.attention_type),
+                norm_type=norm_type,
+                norm_placement=NormPlacement.PRE,
+                activation=activation,
                 dropout=config.dropout,
                 use_bias=config.use_bias,
-                num_layers=config.num_layers,
             )
-            self.blocks.append(block)
+            for _ in range(config.num_layers)
+        ])
 
-        # Final layer norm
-        if config.norm_type == "rmsnorm":
-            self.final_norm = RMSNorm(config.d_model)
-        else:
-            self.final_norm = LayerNorm(config.d_model)
+        # Final norm + LM head
+        self.final_norm = RMSNorm(config.d_model)
+        self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
 
-        # Language model head (output projection)
-        if config.tie_weights:
-            self.lm_head = self.embedding.weight  # weight tying
-        else:
-            scale = np.sqrt(2.0 / config.d_model).astype(np.float32)
-            self.lm_head = Tensor(
-                np.random.randn(config.d_model, config.vocab_size).astype(np.float32) * scale,
-                requires_grad=True,
-            )
+        # Weight tying (embedding ↔ lm_head)
+        self.lm_head.weight = self.embedding.token_embedding.weight
 
-        self._training = True
+        # Move to device
+        self.to(self.device)
+        self._apply_init()
 
-    # ─── Forward Pass ────────────────────────────────────────
+    def _apply_init(self):
+        """Apply scaled initialization."""
+        for name, p in self.named_parameters():
+            if p.dim() > 1:
+                nn.init.normal_(p, std=0.02)
+            elif "bias" in name:
+                nn.init.zeros_(p)
 
     def forward(
         self,
-        token_ids: np.ndarray,
-        targets: Optional[np.ndarray] = None,
+        token_ids: torch.Tensor,
+        targets: Optional[torch.Tensor] = None,
         store_intermediates: bool = False,
     ) -> Dict:
         """
-        Forward pass through the full model.
+        Forward pass through the model.
 
         Args:
             token_ids: (batch, seq_len) integer token IDs
-            targets: optional (batch, seq_len) for loss computation
-            store_intermediates: whether to save layer outputs
+            targets: (batch, seq_len) target token IDs for loss
+            store_intermediates: save layer outputs for visualization
         Returns:
-            dict with 'logits', optionally 'loss' and 'intermediates'
+            Dict with 'logits', optionally 'loss' and 'intermediates'
         """
-        intermediates: Dict[str, object] = {}
+        if isinstance(token_ids, np.ndarray):
+            token_ids = torch.from_numpy(token_ids).long()
+        token_ids = token_ids.to(self.device)
 
-        if token_ids.ndim == 1:
-            token_ids = token_ids[np.newaxis, :]
-
-        batch_size, seq_len = token_ids.shape
+        B, S = token_ids.shape
+        mask = torch.tril(torch.ones(S, S, device=self.device))
 
         # Embeddings
-        x = self.embedding.forward(token_ids)
-        if isinstance(x, Tensor):
-            x = x.data
-
-        if store_intermediates:
-            intermediates["embeddings"] = x.copy()
-
-        # Causal mask
-        mask = MultiHeadAttention.create_causal_mask(seq_len)
+        x = self.embedding(token_ids)  # (B, S, D)
 
         # Transformer blocks
-        for i, block in enumerate(self.blocks):
-            result = block.forward(x, mask, store_intermediates=store_intermediates)
+        intermediates = {}
+        for i, layer in enumerate(self.layers):
+            result = layer(x, mask=mask, store_intermediates=store_intermediates)
             x = result.output
             if store_intermediates and result.intermediates:
-                intermediates[f"block_{i}"] = result.intermediates
+                intermediates[f"layer_{i}"] = result.intermediates
 
-        # Final norm
-        x = self.final_norm.forward(x)
+        # Final norm + LM head
+        x = self.final_norm(x)
+        logits = self.lm_head(x)  # (B, S, vocab_size)
+
+        result = {"logits": logits.detach().cpu().numpy()}
+
         if store_intermediates:
-            intermediates["final_norm"] = x.copy()
+            result["intermediates"] = intermediates
 
-        # Logits
-        if self.config.tie_weights:
-            logits = x @ self.lm_head.data.T
-        else:
-            logits = x @ self.lm_head.data
-
-        result_dict: Dict = {"logits": logits}
-
-        # Loss
+        # Compute loss if targets provided
         if targets is not None:
-            logits_tensor = Tensor(logits, requires_grad=True)
-            loss_tensor = logits_tensor.cross_entropy(targets)
-            result_dict["loss"] = float(loss_tensor.data)
-            result_dict["loss_tensor"] = loss_tensor
+            if isinstance(targets, np.ndarray):
+                targets = torch.from_numpy(targets).long()
+            targets = targets.to(self.device)
 
-        if store_intermediates:
-            result_dict["intermediates"] = intermediates
+            loss = F.cross_entropy(
+                logits.view(-1, self.config.vocab_size),
+                targets.view(-1),
+            )
+            result["loss"] = loss.item()
+            result["_loss_tensor"] = loss  # Keep for backprop
 
-        return result_dict
-
-    # ─── Text Generation ────────────────────────────────────
+        return result
 
     def generate(
         self,
-        prompt_ids: np.ndarray,
+        prompt: torch.Tensor,
         max_new_tokens: int = 50,
-        temperature: float = 1.0,
-        top_k: int = 0,
-        top_p: float = 1.0,
+        temperature: float = 0.8,
+        top_k: int = 40,
+        top_p: float = 0.9,
     ) -> Tuple[np.ndarray, List[Dict]]:
         """
-        Autoregressive text generation with sampling strategies.
+        Autoregressive text generation with sampling.
 
         Returns:
-            (generated_ids, step_metadata) — the full sequence and
-            per-step information for visualization.
+            (generated_ids, step_info) — generated token array and per-step metadata
         """
-        self.set_training(False)
+        self.eval()
 
-        if prompt_ids.ndim == 1:
-            prompt_ids = prompt_ids[np.newaxis, :]
+        if isinstance(prompt, np.ndarray):
+            prompt = torch.from_numpy(prompt).long()
+        prompt = prompt.to(self.device)
 
-        current = prompt_ids.copy()
-        step_metadata: List[Dict] = []
+        generated = prompt.clone()
+        step_info = []
 
-        for step in range(max_new_tokens):
-            # Truncate to max sequence length
-            context = current[:, -self.config.max_seq_len :]
+        with torch.no_grad():
+            for step in range(max_new_tokens):
+                # Truncate to max_seq_len
+                context = generated[:, -self.config.max_seq_len:]
+                result = self._forward_for_generation(context)
+                logits = result[:, -1, :]  # Last position
 
-            result = self.forward(context)
-            logits = result["logits"][:, -1, :]  # last token logits
+                # Temperature scaling
+                logits = logits / max(temperature, 1e-8)
 
-            # Temperature scaling
-            if temperature != 1.0:
-                logits = logits / temperature
+                # Top-k filtering
+                if top_k > 0:
+                    k = min(top_k, logits.size(-1))
+                    top_k_vals, _ = torch.topk(logits, k)
+                    logits[logits < top_k_vals[:, -1:]] = float("-inf")
 
-            # Top-k filtering
-            if top_k > 0:
-                top_k_val = min(top_k, logits.shape[-1])
-                threshold = np.sort(logits, axis=-1)[:, -top_k_val : -top_k_val + 1]
-                logits[logits < threshold] = -1e9
+                # Top-p (nucleus) filtering
+                if top_p < 1.0:
+                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                    cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+                    cutoff = cumulative_probs > top_p
+                    cutoff[:, 1:] = cutoff[:, :-1].clone()
+                    cutoff[:, 0] = False
+                    indices_to_remove = cutoff.scatter(1, sorted_indices, cutoff)
+                    logits[indices_to_remove] = float("-inf")
 
-            # Top-p (nucleus) filtering
-            if top_p < 1.0:
-                sorted_logits = np.sort(logits, axis=-1)[:, ::-1]
-                sorted_indices = np.argsort(logits, axis=-1)[:, ::-1]
-                probs = np.exp(sorted_logits - sorted_logits.max(axis=-1, keepdims=True))
-                probs = probs / probs.sum(axis=-1, keepdims=True)
-                cumulative = np.cumsum(probs, axis=-1)
-                mask = cumulative - probs > top_p
-                for b in range(logits.shape[0]):
-                    remove_indices = sorted_indices[b][mask[b]]
-                    logits[b, remove_indices] = -1e9
+                probs = F.softmax(logits, dim=-1)
+                next_token = torch.multinomial(probs, num_samples=1)
+                generated = torch.cat([generated, next_token], dim=1)
 
-            # Sample
-            probs = np.exp(logits - logits.max(axis=-1, keepdims=True))
-            probs = probs / probs.sum(axis=-1, keepdims=True)
+                step_info.append({
+                    "step": step,
+                    "token_id": next_token.item(),
+                    "top_probs": probs[0].topk(5).values.cpu().numpy().tolist(),
+                    "top_tokens": probs[0].topk(5).indices.cpu().numpy().tolist(),
+                })
 
-            next_token = np.array(
-                [np.random.choice(len(p), p=p) for p in probs]
-            ).reshape(-1, 1)
+        self.train()
+        return generated.cpu().numpy(), step_info
 
-            current = np.concatenate([current, next_token], axis=1)
-
-            step_metadata.append({
-                "step": step,
-                "token_id": int(next_token[0, 0]),
-                "probabilities": probs[0].tolist(),
-                "top_5": [
-                    {"id": int(idx), "prob": float(probs[0, idx])}
-                    for idx in np.argsort(probs[0])[-5:][::-1]
-                ],
-            })
-
-        self.set_training(True)
-        return current, step_metadata
-
-    # ─── Training Utilities ──────────────────────────────────
-
-    def parameters(self) -> List[Tensor]:
-        params: List[Tensor] = []
-        params.extend(self.embedding.parameters())
-        for block in self.blocks:
-            params.extend(block.parameters())
-        params.extend(self.final_norm.parameters())
-        if not self.config.tie_weights:
-            params.append(self.lm_head)
-        return params
-
-    def num_parameters(self) -> int:
-        return sum(p.data.size for p in self.parameters())
+    def _forward_for_generation(self, token_ids: torch.Tensor) -> torch.Tensor:
+        """Lightweight forward pass for generation (returns logits tensor directly)."""
+        B, S = token_ids.shape
+        mask = torch.tril(torch.ones(S, S, device=self.device))
+        x = self.embedding(token_ids)
+        for layer in self.layers:
+            result = layer(x, mask=mask, store_intermediates=False)
+            x = result.output
+        x = self.final_norm(x)
+        return self.lm_head(x)
 
     def set_training(self, training: bool):
-        self._training = training
-        for block in self.blocks:
-            block.set_training(training)
-
-    def zero_grad(self):
-        for p in self.parameters():
-            p.zero_grad()
-
-    def get_config_summary(self) -> Dict:
-        return {
-            "vocab_size": self.config.vocab_size,
-            "d_model": self.config.d_model,
-            "num_heads": self.config.num_heads,
-            "num_layers": self.config.num_layers,
-            "d_ff": self.config.d_ff,
-            "max_seq_len": self.config.max_seq_len,
-            "num_parameters": self.num_parameters(),
-            "norm_type": self.config.norm_type,
-            "activation": self.config.activation,
-            "attention_type": self.config.attention_type,
-            "positional_encoding": self.config.positional_encoding,
-        }
-
-    # ─── Checkpoint Save/Load ────────────────────────────────
+        """Toggle training/eval mode."""
+        if training:
+            self.train()
+        else:
+            self.eval()
 
     def save_checkpoint(self, path: str):
-        """Save model weights to file."""
-        state = {
-            "config": self.config.__dict__,
-            "weights": {
-                f"param_{i}": p.data for i, p in enumerate(self.parameters())
-            },
-        }
-        np.savez_compressed(path, **{k: v for k, v in state["weights"].items()},
-                           config=np.array([str(state["config"])]))
+        """Save model checkpoint."""
+        torch.save({
+            "model_state_dict": self.state_dict(),
+            "config": self.config,
+        }, path)
 
     def load_checkpoint(self, path: str):
-        """Load model weights from file."""
-        data = np.load(path, allow_pickle=True)
-        params = self.parameters()
-        for i, p in enumerate(params):
-            key = f"param_{i}"
-            if key in data:
-                p.data = data[key].astype(np.float32)
+        """Load model checkpoint."""
+        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
+        self.load_state_dict(checkpoint["model_state_dict"])
+
+    def parameters_count(self) -> Dict:
+        """Get parameter count breakdown."""
+        total = sum(p.numel() for p in self.parameters())
+        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        return {
+            "total": total,
+            "trainable": trainable,
+            "frozen": total - trainable,
+            "size_mb": round(total * 4 / 1e6, 2),  # float32
+        }
+
+    def forward_with_intermediates(self, token_ids) -> Dict:
+        """Forward pass that returns all intermediate layer outputs."""
+        return self.forward(token_ids, store_intermediates=True)

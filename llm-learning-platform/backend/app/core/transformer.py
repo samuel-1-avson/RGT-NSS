@@ -1,9 +1,8 @@
 """
-Transformer Block System
+Transformer Block Engine — PyTorch GPU-accelerated Transformer
 
-Complete transformer block with all normalization variants
-(LayerNorm, RMSNorm, DeepNorm), activation functions (GELU,
-SwiGLU, SiLU), and pre-norm / post-norm placement.
+Pre/post-norm transformer blocks with LayerNorm/RMSNorm,
+SwiGLU/GELU MLP, and residual connections as real nn.Modules.
 """
 
 from __future__ import annotations
@@ -13,294 +12,195 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-from app.core.tensor import Tensor
 from app.core.attention import MultiHeadAttention, AttentionType
 
 
-class NormType(str, Enum):
+class NormType(Enum):
     LAYERNORM = "layernorm"
     RMSNORM = "rmsnorm"
-    DEEPNORM = "deepnorm"
 
 
-class NormPlacement(str, Enum):
+class NormPlacement(Enum):
     PRE = "pre"
     POST = "post"
 
 
-class ActivationType(str, Enum):
-    GELU = "gelu"
+class ActivationType(Enum):
     RELU = "relu"
+    GELU = "gelu"
     SWIGLU = "swiglu"
     SILU = "silu"
 
 
-@dataclass
-class TransformerBlockOutput:
-    output: np.ndarray
-    intermediates: Optional[Dict[str, np.ndarray]] = None
+class RMSNorm(nn.Module):
+    """Root Mean Square Layer Normalization."""
 
-
-# ─── Normalization Layers ────────────────────────────────────
-
-class LayerNorm:
-    """Standard Layer Normalization."""
-
-    def __init__(self, dim: int, eps: float = 1e-6):
+    def __init__(self, d_model: int, eps: float = 1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(d_model))
         self.eps = eps
-        self.gamma = Tensor(np.ones(dim, dtype=np.float32), requires_grad=True)
-        self.beta = Tensor(np.zeros(dim, dtype=np.float32), requires_grad=True)
 
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        mean = x.mean(axis=-1, keepdims=True)
-        var = x.var(axis=-1, keepdims=True)
-        normed = (x - mean) / np.sqrt(var + self.eps)
-        return self.gamma.data * normed + self.beta.data
-
-    def parameters(self) -> List[Tensor]:
-        return [self.gamma, self.beta]
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        rms = torch.sqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return x / rms * self.weight
 
 
-class RMSNorm:
-    """Root Mean Square Layer Normalization (Zhang & Sennrich, 2019)."""
+class LayerNorm(nn.Module):
+    """Standard Layer Normalization (wraps nn.LayerNorm)."""
 
-    def __init__(self, dim: int, eps: float = 1e-6):
-        self.eps = eps
-        self.gamma = Tensor(np.ones(dim, dtype=np.float32), requires_grad=True)
+    def __init__(self, d_model: int, eps: float = 1e-6):
+        super().__init__()
+        self.norm = nn.LayerNorm(d_model, eps=eps)
 
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        rms = np.sqrt(np.mean(x ** 2, axis=-1, keepdims=True) + self.eps)
-        return self.gamma.data * (x / rms)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.norm(x)
 
-    def parameters(self) -> List[Tensor]:
-        return [self.gamma]
-
-
-class DeepNorm:
-    """DeepNorm for training very deep transformers (Wang et al., 2022)."""
-
-    def __init__(self, dim: int, num_layers: int, eps: float = 1e-6):
-        self.eps = eps
-        self.gamma = Tensor(np.ones(dim, dtype=np.float32), requires_grad=True)
-        self.alpha = (2.0 * num_layers) ** 0.25
-
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        rms = np.sqrt(np.mean(x ** 2, axis=-1, keepdims=True) + self.eps)
-        return self.alpha * self.gamma.data * (x / rms)
-
-    def parameters(self) -> List[Tensor]:
-        return [self.gamma]
+    def parameters(self, recurse=True):
+        return self.norm.parameters(recurse)
 
 
-# ─── MLP / Feedforward ──────────────────────────────────────
+class SwiGLUMLP(nn.Module):
+    """SwiGLU activation MLP (used in LLaMA-style models)."""
 
-class MLP:
-    """Feedforward network with multiple activation function options."""
+    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1):
+        super().__init__()
+        self.w1 = nn.Linear(d_model, d_ff, bias=False)
+        self.w2 = nn.Linear(d_ff, d_model, bias=False)
+        self.w3 = nn.Linear(d_model, d_ff, bias=False)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.dropout(self.w2(F.silu(self.w1(x)) * self.w3(x)))
+
+
+class StandardMLP(nn.Module):
+    """Standard two-layer MLP with configurable activation."""
 
     def __init__(
         self,
         d_model: int,
         d_ff: int,
         activation: ActivationType = ActivationType.GELU,
+        dropout: float = 0.1,
         use_bias: bool = True,
     ):
-        self.d_model = d_model
-        self.d_ff = d_ff
-        self.activation = activation
-        self.use_bias = use_bias
+        super().__init__()
+        self.fc1 = nn.Linear(d_model, d_ff, bias=use_bias)
+        self.fc2 = nn.Linear(d_ff, d_model, bias=use_bias)
+        self.dropout = nn.Dropout(dropout)
 
-        scale_up = np.sqrt(2.0 / d_model).astype(np.float32)
-        scale_down = np.sqrt(2.0 / d_ff).astype(np.float32)
+        self.act_fn = {
+            ActivationType.RELU: F.relu,
+            ActivationType.GELU: F.gelu,
+            ActivationType.SILU: F.silu,
+        }.get(activation, F.gelu)
 
-        if activation == ActivationType.SWIGLU:
-            self.W_up = Tensor(np.random.randn(d_model, d_ff).astype(np.float32) * scale_up, requires_grad=True)
-            self.W_gate = Tensor(np.random.randn(d_model, d_ff).astype(np.float32) * scale_up, requires_grad=True)
-            self.W_down = Tensor(np.random.randn(d_ff, d_model).astype(np.float32) * scale_down, requires_grad=True)
-            if use_bias:
-                self.b_up = Tensor(np.zeros(d_ff, dtype=np.float32), requires_grad=True)
-                self.b_gate = Tensor(np.zeros(d_ff, dtype=np.float32), requires_grad=True)
-                self.b_down = Tensor(np.zeros(d_model, dtype=np.float32), requires_grad=True)
-        else:
-            self.W_1 = Tensor(np.random.randn(d_model, d_ff).astype(np.float32) * scale_up, requires_grad=True)
-            self.W_2 = Tensor(np.random.randn(d_ff, d_model).astype(np.float32) * scale_down, requires_grad=True)
-            if use_bias:
-                self.b_1 = Tensor(np.zeros(d_ff, dtype=np.float32), requires_grad=True)
-                self.b_2 = Tensor(np.zeros(d_model, dtype=np.float32), requires_grad=True)
-
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        if self.activation == ActivationType.SWIGLU:
-            gate = x @ self.W_gate.data
-            up = x @ self.W_up.data
-            if self.use_bias:
-                gate = gate + self.b_gate.data
-                up = up + self.b_up.data
-            # SwiGLU: Swish(gate) * up
-            gate = gate * (1.0 / (1.0 + np.exp(-gate)))  # swish
-            hidden = gate * up
-            out = hidden @ self.W_down.data
-            if self.use_bias:
-                out = out + self.b_down.data
-            return out
-
-        # Standard two-layer MLP
-        hidden = x @ self.W_1.data
-        if self.use_bias:
-            hidden = hidden + self.b_1.data
-
-        if self.activation == ActivationType.GELU:
-            c = np.sqrt(2.0 / np.pi)
-            hidden = 0.5 * hidden * (1.0 + np.tanh(c * (hidden + 0.044715 * hidden ** 3)))
-        elif self.activation == ActivationType.RELU:
-            hidden = np.maximum(0, hidden)
-        elif self.activation == ActivationType.SILU:
-            hidden = hidden * (1.0 / (1.0 + np.exp(-hidden)))
-
-        out = hidden @ self.W_2.data
-        if self.use_bias:
-            out = out + self.b_2.data
-        return out
-
-    def parameters(self) -> List[Tensor]:
-        if self.activation == ActivationType.SWIGLU:
-            params = [self.W_up, self.W_gate, self.W_down]
-            if self.use_bias:
-                params.extend([self.b_up, self.b_gate, self.b_down])
-        else:
-            params = [self.W_1, self.W_2]
-            if self.use_bias:
-                params.extend([self.b_1, self.b_2])
-        return params
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.dropout(self.fc2(self.act_fn(self.fc1(x))))
 
 
-class Dropout:
-    """Dropout layer (training-time only)."""
-
-    def __init__(self, rate: float = 0.1):
-        self.rate = rate
-        self.training = True
-
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        if not self.training or self.rate == 0.0:
-            return x
-        mask = (np.random.rand(*x.shape) > self.rate).astype(np.float32)
-        return x * mask / (1.0 - self.rate)
+@dataclass
+class TransformerBlockResult:
+    output: torch.Tensor  # Changed from np.ndarray to torch.Tensor
+    intermediates: Optional[Dict] = None
 
 
-# ─── Transformer Block ──────────────────────────────────────
-
-class TransformerBlock:
+class TransformerBlock(nn.Module):
     """
-    Complete transformer block with all normalization and
-    activation variants. Supports pre-norm and post-norm.
+    Complete transformer block with attention, MLP, norms, and residuals.
+
+    Supports pre-norm and post-norm configurations.
     """
 
     def __init__(
         self,
-        d_model: int,
-        num_heads: int,
-        d_ff: int,
+        d_model: int = 128,
+        num_heads: int = 4,
+        d_ff: int = 512,
         norm_type: NormType = NormType.RMSNORM,
         norm_placement: NormPlacement = NormPlacement.PRE,
         activation: ActivationType = ActivationType.GELU,
         attention_type: AttentionType = AttentionType.FULL,
         dropout: float = 0.1,
         use_bias: bool = True,
-        num_layers: int = 12,
+        num_layers: int = 1,
     ):
-        self.d_model = d_model
+        super().__init__()
         self.norm_placement = norm_placement
 
-        # Attention sublayer
-        self.attention = MultiHeadAttention(d_model, num_heads, attention_type, dropout)
+        # Normalization
+        NormClass = RMSNorm if norm_type == NormType.RMSNORM else LayerNorm
+        self.norm1 = NormClass(d_model)
+        self.norm2 = NormClass(d_model)
 
-        # Normalization layers
-        def make_norm():
-            if norm_type == NormType.LAYERNORM:
-                return LayerNorm(d_model)
-            elif norm_type == NormType.RMSNORM:
-                return RMSNorm(d_model)
-            elif norm_type == NormType.DEEPNORM:
-                return DeepNorm(d_model, num_layers)
-            raise ValueError(f"Unknown norm type: {norm_type}")
+        # Attention
+        self.attention = MultiHeadAttention(
+            d_model=d_model,
+            num_heads=num_heads,
+            dropout=dropout,
+            attention_type=attention_type,
+            use_bias=use_bias,
+        )
 
-        self.norm1 = make_norm()
-        self.norm2 = make_norm()
+        # MLP
+        if activation == ActivationType.SWIGLU:
+            self.mlp = SwiGLUMLP(d_model, d_ff, dropout)
+        else:
+            self.mlp = StandardMLP(d_model, d_ff, activation, dropout, use_bias)
 
-        # MLP sublayer
-        self.mlp = MLP(d_model, d_ff, activation, use_bias)
-
-        # Dropout
-        self.dropout1 = Dropout(dropout)
-        self.dropout2 = Dropout(dropout)
+        self.dropout = nn.Dropout(dropout)
+        self._training_mode = True
 
     def forward(
         self,
-        x: np.ndarray,
-        mask: Optional[np.ndarray] = None,
-        kv_cache: Optional[tuple] = None,
+        x: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
         store_intermediates: bool = False,
-    ) -> TransformerBlockOutput:
-        intermediates: Dict[str, np.ndarray] = {}
+    ) -> TransformerBlockResult:
+        """Forward pass through the transformer block."""
+        intermediates = {}
 
         if self.norm_placement == NormPlacement.PRE:
-            # ── Pre-Norm (GPT-3, LLaMA style) ────────────────
-            # Attention sublayer
-            normed = self.norm1.forward(x)
-            if store_intermediates:
-                intermediates["norm1_output"] = normed.copy()
+            # Pre-norm: Norm → Attention → Residual → Norm → MLP → Residual
+            normed = self.norm1(x)
+            attn_out = self.attention(normed, mask=mask, store_weights=store_intermediates)
+            x = x + attn_out
 
-            attn_out, attn_w = self.attention.forward(normed, mask, kv_cache)
             if store_intermediates:
-                intermediates["attention_output"] = attn_out.copy()
-                intermediates["attention_weights"] = attn_w.copy()
+                intermediates["post_attention"] = x.detach().cpu().numpy()
+                weights = self.attention.get_attention_weights()
+                if weights is not None:
+                    intermediates["attention_weights"] = weights
 
-            attn_out = self.dropout1.forward(attn_out)
-            x = x + attn_out  # residual
+            normed = self.norm2(x)
+            mlp_out = self.mlp(normed)
+            x = x + mlp_out
+
             if store_intermediates:
-                intermediates["after_attention_residual"] = x.copy()
-
-            # MLP sublayer
-            normed = self.norm2.forward(x)
-            if store_intermediates:
-                intermediates["norm2_output"] = normed.copy()
-
-            mlp_out = self.mlp.forward(normed)
-            if store_intermediates:
-                intermediates["mlp_output"] = mlp_out.copy()
-
-            mlp_out = self.dropout2.forward(mlp_out)
-            x = x + mlp_out  # residual
-            if store_intermediates:
-                intermediates["final_output"] = x.copy()
-
+                intermediates["post_mlp"] = x.detach().cpu().numpy()
         else:
-            # ── Post-Norm (original Transformer style) ────────
-            attn_out, attn_w = self.attention.forward(x, mask, kv_cache)
-            attn_out = self.dropout1.forward(attn_out)
-            x = self.norm1.forward(x + attn_out)
-
-            mlp_out = self.mlp.forward(x)
-            mlp_out = self.dropout2.forward(mlp_out)
-            x = self.norm2.forward(x + mlp_out)
+            # Post-norm: Attention → Residual → Norm → MLP → Residual → Norm
+            attn_out = self.attention(x, mask=mask, store_weights=store_intermediates)
+            x = self.norm1(x + attn_out)
 
             if store_intermediates:
-                intermediates["attention_weights"] = attn_w.copy()
-                intermediates["final_output"] = x.copy()
+                intermediates["post_attention"] = x.detach().cpu().numpy()
 
-        return TransformerBlockOutput(
+            mlp_out = self.mlp(x)
+            x = self.norm2(x + mlp_out)
+
+            if store_intermediates:
+                intermediates["post_mlp"] = x.detach().cpu().numpy()
+
+        return TransformerBlockResult(
             output=x,
             intermediates=intermediates if store_intermediates else None,
         )
 
-    def parameters(self) -> List[Tensor]:
-        params: List[Tensor] = []
-        params.extend(self.attention.parameters())
-        params.extend(self.norm1.parameters())
-        params.extend(self.norm2.parameters())
-        params.extend(self.mlp.parameters())
-        return params
-
     def set_training(self, training: bool):
-        self.dropout1.training = training
-        self.dropout2.training = training
+        self._training_mode = training
+        self.train(training)

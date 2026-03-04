@@ -5,18 +5,26 @@ Main FastAPI Application Entry Point
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 
 import socketio
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
+from app.database import create_db_and_tables
+from app.cache import init_redis, close_redis
 from app.api import models, training, inference, tokenization, embeddings, health
 from app.api import modules, users, visualizations
 from app.api import rlhf, lora, evaluation, inference_opt, interpretability
 from app.api import distributed, prompt_eng, safety, long_context
 from app.websocket import sio
+
+# ─── Rate Limiter ────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 
 @asynccontextmanager
@@ -26,7 +34,14 @@ async def lifespan(app: FastAPI):
     print(f"  Starting {settings.app_name} v{settings.app_version}")
     print(f"  Environment: {settings.environment}")
     print(f"  GPU enabled: {settings.use_gpu}")
+    # Create database tables on startup
+    await create_db_and_tables()
+    print("  Database tables ready")
+    # Initialize Redis (non-fatal if unavailable)
+    redis = await init_redis()
+    print(f"  Redis: {'connected' if redis else 'unavailable (caching disabled)'}")
     yield
+    await close_redis()
     print("  Shutting down...")
 
 
@@ -42,6 +57,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# ─── Rate Limit Error Handler ───────────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ─── CORS Middleware ─────────────────────────────────────────
 settings = get_settings()

@@ -12,24 +12,24 @@ The **Interactive LLM Learning Platform** is a full-stack educational platform f
 ┌──────────────────────────────────────────────────────────┐
 │  Frontend (Next.js 15 + React 18 + TypeScript)           │
 │  • Interactive Modules (Tokenization, Attention, etc.)   │
-│  • Visualization Engine (D3.js / Three.js)               │
-│  • Real-time Collaboration (WebSocket + WebRTC)          │
+│  • Visualization Engine (D3.js / Three.js / Recharts)    │
+│  • Real-time Updates (Socket.IO)                         │
 │  • State Management (Zustand + React Query)              │
 └──────────────────────┬───────────────────────────────────┘
                        │ HTTP / WebSocket
 ┌──────────────────────┴───────────────────────────────────┐
 │  Backend (FastAPI + Python 3.11+)                        │
-│  • REST API + WebSocket + GraphQL                        │
-│  • Microservices (Model, Training, Inference, etc.)      │
-│  • Core Engine (Tensor Ops, Autograd, Models)            │
-│  • Event-Driven Communication (Redis Pub/Sub)            │
+│  • REST API (19 routers, auto-docs at /docs)             │
+│  • Custom Core Engine (Tensor Ops, Autograd, Models)     │
+│  • WebSocket Layer (python-socketio)                     │
+│  • Rate Limiting (SlowAPI)                               │
 └──────────────────────┬───────────────────────────────────┘
                        │
 ┌──────────────────────┴───────────────────────────────────┐
 │  Data Layer                                               │
-│  • PostgreSQL (Primary DB)                                │
-│  • Redis (Cache / Sessions / Pub/Sub)                     │
-│  • MinIO / S3 (Object Storage)                            │
+│  • PostgreSQL 16 (Primary DB via SQLModel/asyncpg)        │
+│  • Redis 7 (Cache / Rate Limiting)                        │
+│  • Alembic (Database Migrations)                          │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -47,6 +47,10 @@ The **Interactive LLM Learning Platform** is a full-stack educational platform f
 # Clone and setup
 git clone <repo-url>
 cd llm-learning-platform
+
+# Copy environment configuration
+cp .env.example .env
+# ⚠️ Edit .env and set a strong SECRET_KEY for production
 
 # Backend
 cd backend
@@ -71,38 +75,47 @@ docker-compose up --build
 docker-compose -f docker-compose.gpu.yml up --build
 ```
 
+### Running Tests
+
+```bash
+# Backend tests
+cd backend
+python -m pytest tests/ -v
+
+# Frontend tests
+cd frontend
+npm test
+```
+
 ## Platform Modules
 
-| # | Module | Description |
-|---|--------|-------------|
-| 1 | Tokenization Laboratory | BPE, WordPiece, SentencePiece from scratch |
-| 2 | Embedding Explorer | Positional encodings, similarity, analogy |
-| 3 | Attention Mechanism Visualizer | Full/local/sparse/linear attention |
-| 4 | Transformer Block Breakdown | Norm, MLP, residual connections |
-| 5 | Training Dashboard | Loss curves, gradient flow, optimization |
-| 6 | Model Configuration Studio | Architecture design and comparison |
-| 7 | Inference Playground | Generation with sampling strategies |
-| 8 | RLHF & Constitutional AI Lab | Reward modeling, PPO, DPO |
-| 9 | Parameter-Efficient Fine-tuning | LoRA, QLoRA, Adapters |
-| 10 | Distributed Training Simulator | Data/Model parallelism, ZeRO |
-| 11 | Inference Optimization Lab | KV cache, speculative decoding |
-| 12 | Model Evaluation & Benchmarking | Metrics, leaderboards |
-| 13 | Prompt Engineering Workshop | Advanced prompting techniques |
-| 14 | Mechanistic Interpretability | Circuit tracing, feature viz |
-| 15 | Long Context Techniques | RoPE, YaRN, ALiBi, Ring Attention |
-| 16 | AI Safety & Alignment Center | Red-teaming, bias detection |
-| 17 | Model Merging & Ensemble Studio | SLERP, task arithmetic |
-| 18 | Data Curation Pipeline | Dataset preparation, cleaning |
-| 19 | Multimodal Integration | Vision encoders, CLIP |
-| 20 | Quantization Lab | INT8, INT4, GPTQ, AWQ |
+| # | Module | Status | Description |
+|---|--------|--------|-------------|
+| 1 | Tokenization Laboratory | ✅ | BPE, WordPiece, SentencePiece from scratch |
+| 2 | Embedding Explorer | ✅ | Positional encodings, similarity, analogy |
+| 3 | Attention Mechanism Visualizer | ✅ | Full/local/sparse/linear attention |
+| 4 | Transformer Block Breakdown | ✅ | Norm, MLP, residual connections |
+| 5 | Training Dashboard | ✅ | Loss curves, gradient flow, optimization |
+| 6 | Inference Playground | ✅ | Generation with sampling strategies |
+| 7 | RLHF & Constitutional AI Lab | ✅ | Reward modeling, PPO, DPO |
+| 8 | Parameter-Efficient Fine-tuning | ✅ | LoRA, QLoRA, Adapters |
+| 9 | Distributed Training Simulator | ✅ | Data/Model parallelism, ZeRO |
+| 10 | Inference Optimization Lab | ✅ | KV cache, speculative decoding |
+| 11 | Model Evaluation & Benchmarking | ✅ | BLEU, ROUGE, perplexity |
+| 12 | Prompt Engineering Workshop | ✅ | Advanced prompting techniques |
+| 13 | Mechanistic Interpretability | ✅ | Logit lens, neuron analysis |
+| 14 | Long Context Techniques | ✅ | RoPE, YaRN, ALiBi |
+| 15 | AI Safety & Alignment Center | ✅ | Red-teaming, bias detection |
+| 16 | Quantization Lab | ✅ | INT8, INT4, NF4 quantization |
 
 ## Tech Stack
 
 - **Frontend**: Next.js 15, React 18, TypeScript 5.3, Tailwind CSS, D3.js, Three.js, Zustand, React Query
 - **Backend**: FastAPI, Python 3.11+, NumPy, WebSocket (python-socketio)
-- **Database**: PostgreSQL 16, Redis 7+
-- **Infrastructure**: Docker, Traefik, Prometheus, Grafana
-- **ML/AI**: PyTorch, HuggingFace Transformers, PEFT, TRL
+- **Database**: PostgreSQL 16 (async via asyncpg), Redis 7+
+- **Infrastructure**: Docker, Traefik, Alembic (migrations)
+- **Testing**: Pytest (backend), Vitest + React Testing Library (frontend)
+- **CI/CD**: GitHub Actions
 
 ## License
 

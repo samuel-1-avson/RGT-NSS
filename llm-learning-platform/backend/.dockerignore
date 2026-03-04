@@ -1,11 +1,53 @@
-__pycache__
-*.pyc
-.git
-.env
-*.egg-info
-.pytest_cache
-.mypy_cache
-tests/
-*.md
-.coverage
+# ──────────────────────────────────────────────────────────────
+# Docker ignore — exclude build artifacts from context
+# ──────────────────────────────────────────────────────────────
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# PyTorch cache / model files
+*.pt
+*.pth
+*.bin
+*.safetensors
+checkpoints/
+*.ckpt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.mypy_cache/
 htmlcov/
+.coverage
+tests/
+
+# Git
+.git/
+.gitignore
+
+# Env
+.env
+.env.*
+
+# Docs
+*.md
+
+# Logs
+logs/
+*.log

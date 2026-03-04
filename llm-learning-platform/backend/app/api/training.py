@@ -1,25 +1,27 @@
 """
-Training API
+Training API — PyTorch GPU-accelerated Training
 
-Start, stop, monitor, and visualize model training sessions.
+Start, monitor, and control model training sessions with real
+PyTorch optimization on GPU.
 """
 
 from typing import Optional
+import uuid
 
-import numpy as np
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.core.model import GPTConfig, PRESET_CONFIGS
-from app.core.trainer import TrainingConfig, TrainingEngine, TrainingStatus
+from app.core.model import GPTConfig, MicroGPT, PRESET_CONFIGS
+from app.core.trainer import Trainer, TrainingConfig
 
 router = APIRouter()
 
-_engine = TrainingEngine()
+# In-memory training sessions
+_sessions: dict = {}
 
 
 class StartTrainingRequest(BaseModel):
-    model_preset: str = "micro"
+    model_preset: str = "nano"
     vocab_size: int = 256
     d_model: int = 128
     num_heads: int = 4
@@ -27,13 +29,13 @@ class StartTrainingRequest(BaseModel):
     d_ff: int = 512
     max_seq_len: int = 64
     # Training params
-    num_epochs: int = 10
-    batch_size: int = 32
+    batch_size: int = 4
     learning_rate: float = 3e-4
     weight_decay: float = 0.01
-    warmup_steps: int = 50
-    max_steps: int = 500
+    max_steps: int = 50
     grad_clip: float = 1.0
+    optimizer: str = "adamw"
+    scheduler: str = "cosine"
 
 
 class TrainingStatusResponse(BaseModel):
@@ -47,7 +49,7 @@ class TrainingStatusResponse(BaseModel):
 
 @router.post("/start", response_model=TrainingStatusResponse)
 async def start_training(request: StartTrainingRequest):
-    """Start a new training session."""
+    """Start a new training session with real PyTorch training."""
     if request.model_preset in PRESET_CONFIGS:
         model_config = PRESET_CONFIGS[request.model_preset]
     else:
@@ -60,88 +62,76 @@ async def start_training(request: StartTrainingRequest):
             max_seq_len=request.max_seq_len,
         )
 
-    training_config = TrainingConfig(
-        num_epochs=request.num_epochs,
-        batch_size=request.batch_size,
+    model = MicroGPT(model_config)
+    train_config = TrainingConfig(
         learning_rate=request.learning_rate,
         weight_decay=request.weight_decay,
-        warmup_steps=request.warmup_steps,
+        batch_size=request.batch_size,
         max_steps=request.max_steps,
         grad_clip=request.grad_clip,
+        optimizer=request.optimizer,
+        scheduler=request.scheduler,
     )
 
-    session = _engine.create_session(model_config, training_config)
+    trainer = Trainer(model=model, config=train_config)
 
-    # Generate sample data and train
-    data = TrainingEngine.generate_sample_data(
-        vocab_size=model_config.vocab_size,
-        num_samples=500,
-        seq_len=model_config.max_seq_len,
-    )
+    # Run training
+    results = trainer.train(num_steps=request.max_steps)
+    session_id = str(uuid.uuid4())
 
-    _engine.train(session.session_id, data)
+    _sessions[session_id] = {
+        "trainer": trainer,
+        "results": results,
+        "status": "completed",
+    }
+
+    summary = trainer.get_training_summary()
 
     return TrainingStatusResponse(
-        session_id=session.session_id,
-        status=session.status.value,
-        current_step=session.current_step,
-        total_steps=session.total_steps,
-        best_loss=session.best_loss,
-        metrics_count=len(session.metrics_history),
+        session_id=session_id,
+        status="completed",
+        current_step=summary["total_steps"],
+        total_steps=request.max_steps,
+        best_loss=round(summary["best_loss"], 6),
+        metrics_count=len(results),
     )
 
 
 @router.get("/{session_id}/status", response_model=TrainingStatusResponse)
 async def get_training_status(session_id: str):
     """Get training session status."""
-    session = _engine.get_session(session_id)
-    if not session:
+    if session_id not in _sessions:
         raise HTTPException(status_code=404, detail="Training session not found")
 
+    session = _sessions[session_id]
+    summary = session["trainer"].get_training_summary()
+
     return TrainingStatusResponse(
-        session_id=session.session_id,
-        status=session.status.value,
-        current_step=session.current_step,
-        total_steps=session.total_steps,
-        best_loss=session.best_loss,
-        metrics_count=len(session.metrics_history),
+        session_id=session_id,
+        status=session["status"],
+        current_step=summary["total_steps"],
+        total_steps=summary["total_steps"],
+        best_loss=round(summary["best_loss"], 6),
+        metrics_count=len(session["results"]),
     )
 
 
 @router.get("/{session_id}/metrics")
-async def get_training_metrics(
-    session_id: str,
-    last_n: Optional[int] = None,
-):
+async def get_training_metrics(session_id: str, last_n: Optional[int] = None):
     """Get training metrics history."""
-    session = _engine.get_session(session_id)
-    if not session:
+    if session_id not in _sessions:
         raise HTTPException(status_code=404, detail="Training session not found")
 
-    history = session.metrics_history
+    results = _sessions[session_id]["results"]
     if last_n:
-        history = history[-last_n:]
+        results = results[-last_n:]
 
-    return {
-        "session_id": session_id,
-        "metrics": [
-            {
-                "step": m.step,
-                "epoch": m.epoch,
-                "loss": m.loss,
-                "learning_rate": m.learning_rate,
-                "grad_norm": m.grad_norm,
-                "tokens_per_sec": m.tokens_per_sec,
-                "elapsed_seconds": m.elapsed_seconds,
-                "perplexity": m.perplexity,
-            }
-            for m in history
-        ],
-    }
+    return {"session_id": session_id, "metrics": results}
 
 
 @router.post("/{session_id}/stop")
 async def stop_training(session_id: str):
     """Stop a training session."""
-    _engine.pause_session(session_id)
+    if session_id in _sessions:
+        _sessions[session_id]["status"] = "stopped"
     return {"status": "stopped", "session_id": session_id}

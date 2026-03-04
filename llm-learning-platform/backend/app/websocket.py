@@ -12,12 +12,16 @@ from typing import Callable
 
 import socketio
 
+from app.config import get_settings
+
 logger = logging.getLogger(__name__)
 
 # Create Socket.IO server (async mode for FastAPI)
+# CORS restricted to the same origins as the REST API
+_settings = get_settings()
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins="*",
+    cors_allowed_origins=_settings.cors_origins,
     logger=False,
     engineio_logger=False,
 )
