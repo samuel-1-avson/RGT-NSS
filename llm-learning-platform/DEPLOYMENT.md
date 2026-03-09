@@ -4,11 +4,11 @@
 
 ```
 ┌─────────────────────┐        ┌──────────────────────────────┐
-│   Vercel (Frontend)  │ ──→   │  Docker Host (Backend Stack)  │
-│   Next.js 15 SSR     │  API  │  ┌─────────────────────────┐  │
-│   Static + Edge      │ calls │  │ FastAPI Backend (:8000)  │  │
-└─────────────────────┘        │  └────────┬────────────────┘  │
-                               │           │                    │
+│      Frontend       │ ──→   │  Docker Host (Backend Stack)  │
+│    Next.js 15       │  API  │  ┌─────────────────────────┐  │
+│    Dockerized       │ calls │  │ FastAPI Backend (:8000)  │  │
+│   (Port 3000)       │       │  └────────┬────────────────┘  │
+└─────────────────────┘        │           │                    │
                                │  ┌────────┴───────┐           │
                                │  │  PostgreSQL 16  │           │
                                │  │  Redis 7        │           │
@@ -18,49 +18,15 @@
 
 ---
 
-## Frontend → Vercel
+## Deployment via Docker
 
-### 1. Prerequisites
-- [Vercel account](https://vercel.com/signup)
-- GitHub / GitLab repository connected
-
-### 2. Deploy
-
-**Option A — Vercel CLI:**
-```bash
-cd frontend
-npx vercel --prod
-```
-
-**Option B — Vercel Dashboard:**
-1. Go to [vercel.com/new](https://vercel.com/new)
-2. Import your repository
-3. Set **Root Directory** to `llm-learning-platform/frontend`
-4. Framework Preset: **Next.js** (auto-detected)
-5. Click **Deploy**
-
-### 3. Environment Variables
-
-Set these in **Vercel Dashboard → Project → Settings → Environment Variables**:
-
-| Variable | Value | Environment |
-|---|---|---|
-| `NEXT_PUBLIC_API_URL` | `https://api.your-domain.com` | Production |
-| `NEXT_PUBLIC_WS_URL` | `wss://api.your-domain.com` | Production |
-
-### 4. Custom Domain (optional)
-1. Go to **Settings → Domains**
-2. Add your domain
-3. Update DNS records as instructed
-
----
-
-## Backend → Docker
+The entire platform is designed to run using Docker Compose, which handles the frontend, backend, database, and caching layers.
 
 ### 1. Prerequisites
 - Docker Engine 24+
 - Docker Compose v2+
 - Server with 2+ GB RAM
+
 
 ### 2. Quick Start (Development)
 
@@ -86,7 +52,7 @@ docker compose logs -f backend
 # Update .env for production
 # - Set ENVIRONMENT=production
 # - Set strong POSTGRES_PASSWORD
-# - Set CORS_ORIGINS to your Vercel frontend URL
+# - Set CORS_ORIGINS to your frontend URL
 
 # Build and start
 docker compose up -d --build
@@ -169,7 +135,7 @@ pytest tests/test_api.py::TestRLHFAPI -v
 
 - [ ] Set strong database credentials in `.env`
 - [ ] Set `ENVIRONMENT=production`
-- [ ] Set `CORS_ORIGINS` to your Vercel frontend URL only
+- [ ] Set `CORS_ORIGINS` to your frontend URL only
 - [ ] Configure SSL/TLS (via Traefik or reverse proxy)
 - [ ] Set up database backups for PostgreSQL
 - [ ] Configure monitoring (Prometheus metrics at `/metrics`)

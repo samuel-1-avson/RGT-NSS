@@ -1,9 +1,6 @@
-/** @type {import('next').NextConfig} */
-const isVercel = process.env.VERCEL === "1";
-
 const nextConfig = {
-  // Use standalone output for Docker; Vercel handles output automatically
-  ...(isVercel ? {} : { output: "standalone" }),
+  // Use standalone output for Docker
+  output: "standalone",
   experimental: {
     serverActions: {
       allowedOrigins: ["localhost:3000"],

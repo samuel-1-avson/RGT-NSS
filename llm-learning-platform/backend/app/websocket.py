@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 _settings = get_settings()
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins="*",  # Explicitly allow all origins for the websocket to prevent Vercel handshake failures
+    cors_allowed_origins="*",  # Allow all origins for the websocket
     logger=False,
     engineio_logger=False,
 )
