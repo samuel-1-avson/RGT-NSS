@@ -199,9 +199,14 @@ export default function ModelCardsPage() {
         {/* Footer Link */}
         <div className="mt-20 text-center">
           <p className="text-xs font-medium text-slate-400 mb-6">Want deeper technical logs?</p>
-          <button className="px-8 py-3 bg-slate-50 border border-slate-200 text-slate-900 rounded-2xl font-black text-xs hover:bg-slate-100 transition-all uppercase tracking-widest">
+          <a 
+            href="http://localhost:8000/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block px-8 py-3 bg-slate-50 border border-slate-200 text-slate-900 rounded-2xl font-black text-xs hover:bg-slate-100 transition-all uppercase tracking-widest"
+          >
             Access System API Docs
-          </button>
+          </a>
         </div>
       </main>
     </div>

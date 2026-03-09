@@ -136,14 +136,14 @@ export default function SettingsPage() {
                 <div>
                   <div className="flex justify-between items-end mb-4">
                     <label className={labelClasses}>Probability Threshold</label>
-                    <span className="text-2xl font-black text-slate-900">{(settings.prediction_threshold * 100).toFixed(0)}%</span>
+                    <span className="text-2xl font-black text-slate-900">{((settings?.prediction_threshold || 0) * 100).toFixed(0)}%</span>
                   </div>
                   <input 
                     type="range" 
                     min="0" 
                     max="1" 
                     step="0.01" 
-                    value={settings.prediction_threshold}
+                    value={settings?.prediction_threshold || 0.5}
                     onChange={(e) => handleUpdateSetting('prediction_threshold', parseFloat(e.target.value))}
                     className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                   />
@@ -163,7 +163,7 @@ export default function SettingsPage() {
                   <div>
                     <label className={labelClasses}>System Log Level</label>
                     <select 
-                      value={settings.log_level}
+                      value={settings?.log_level || "INFO"}
                       onChange={(e) => handleUpdateSetting('log_level', e.target.value)}
                       className={inputClasses}
                     >
@@ -176,7 +176,7 @@ export default function SettingsPage() {
                     <label className={labelClasses}>Max Batch Size</label>
                     <input 
                       type="number" 
-                      value={settings.max_batch_size}
+                      value={settings?.max_batch_size || 100}
                       onChange={(e) => handleUpdateSetting('max_batch_size', parseInt(e.target.value))}
                       className={inputClasses}
                     />
@@ -234,11 +234,11 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex justify-between items-center py-4 border-b border-white/5">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">API Version</span>
-                  <span className="text-sm font-bold text-slate-300">{settings.app_version}</span>
+                  <span className="text-sm font-bold text-slate-300">{settings?.app_version || "1.0.0"}</span>
                 </div>
                 <div className="flex justify-between items-center py-4">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Model Version</span>
-                  <span className="text-sm font-bold text-slate-300">{settings.model_version}</span>
+                  <span className="text-sm font-bold text-slate-300">{settings?.model_version || "1.0.0"}</span>
                 </div>
               </div>
             </div>
