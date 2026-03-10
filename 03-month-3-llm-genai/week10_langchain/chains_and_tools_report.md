@@ -26,7 +26,14 @@ We utilized the `ZeroShotAgent` pattern to allow the system to intelligently dec
 
 ---
 
-## 3. Retrievers
+## 3. What is a Vector Store?
+A **Vector Store** is a specialized database designed to store and retrieve information using mathematical representations of text called "embeddings." 
+
+Unlike traditional databases that search for exact keywords, a vector store enables **semantic search**. This means the system can find information based on the *meaning* and *context* of your query, even if the exact words don't match. In our PDF system, it acts as the long-term memory that holds thousands of document chunks for near-instant retrieval.
+
+---
+
+## 4. Retrievers
 A high-performance retrieval layer was built to ensure the most relevant context is provided to the chains.
 
 * **Vector Store**: Powered by ChromaDB for persistent, fast similarity searching.
